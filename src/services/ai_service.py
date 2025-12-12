@@ -1,0 +1,105 @@
+from ..utils.config import get_settings
+from ..utils.logger import setup_logger
+from google import genai
+from google.genai import types
+import hashlib
+import os
+import mimetypes
+import uuid
+from functools import lru_cache
+
+settings = get_settings()
+logger = setup_logger(__name__)
+
+class AIService:
+    def __init__(self):
+        # Initialize the new Client from google-genai
+        self.client = genai.Client(api_key=settings.GOOGLE_API_KEY)
+        # Ensure we use a model that supports image generation if requested
+        # e.g., "gemini-2.0-flash-exp" or "gemini-2.5-flash-image"
+        self.model_name = settings.GEMINI_MODEL 
+
+    @lru_cache(maxsize=100)
+    def _generate_cached(self, prompt_hash: str, prompt: str):
+        """
+        Internal method to cache AI text responses.
+        """
+        logger.info(f"Generating new content for hash: {prompt_hash[:8]}...")
+        
+        response = self.client.models.generate_content(
+            model=self.model_name,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                temperature=0.7,
+                max_output_tokens=1000, 
+            )
+        )
+        return response.text
+
+    async def generate_content(self, prompt: str) -> str:
+        """
+        Public method to generate text content.
+        """
+        try:
+            prompt_hash = hashlib.md5(prompt.encode()).hexdigest()
+            return self._generate_cached(prompt_hash, prompt)
+        except Exception as e:
+            logger.error(f"AI Generation failed: {str(e)}")
+            raise e
+
+    async def generate_multimodal_content(self, prompt: str) -> dict:
+        """
+        Generates both TEXT and IMAGES from a single prompt using the new SDK.
+        Returns a dict with 'text' and 'images' (list of dictionaries with 'mime_type' and 'data').
+        """
+        logger.info(f"Generating multimodal content for: {prompt[:30]}...")
+        
+        try:
+            contents = [
+                types.Content(
+                    role="user",
+                    parts=[
+                        types.Part.from_text(text=prompt),
+                    ],
+                ),
+            ]
+
+            generate_content_config = types.GenerateContentConfig(
+                response_modalities=["IMAGE", "TEXT"],
+                temperature=0.7,
+            )
+
+            text_parts = []
+            images = []
+            
+            # Using streaming to handle mixed content
+            # Note: This is synchronous in the SDK currently, but wrapped in async method
+            for chunk in self.client.models.generate_content_stream(
+                model=self.model_name,
+                contents=contents,
+                config=generate_content_config,
+            ):
+                if not chunk.candidates or not chunk.candidates[0].content or not chunk.candidates[0].content.parts:
+                    continue
+
+                part = chunk.candidates[0].content.parts[0]
+                
+                # Handle Image
+                if part.inline_data and part.inline_data.data:
+                    images.append({
+                        "mime_type": part.inline_data.mime_type,
+                        "data": part.inline_data.data # Raw binary data
+                    })
+                
+                # Handle Text
+                if part.text:
+                    text_parts.append(part.text)
+
+            return {
+                "text": "".join(text_parts).strip(),
+                "images": images
+            }
+
+        except Exception as e:
+            logger.error(f"Multimodal Generation failed: {str(e)}")
+            raise e
