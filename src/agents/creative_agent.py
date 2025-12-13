@@ -20,13 +20,12 @@ class CreativeAgent:
         {{
             "title": "Activity Title",
             "instructions": "How to play",
-            "questions_to_ask": ["Question 1", "Question 2"],
-            "image": "The image of the creative activity"
+            "questions_to_ask": ["Question 1", "Question 2"]
         }}
         """
         
         try:
-            response = await self.ai_service.generate_multimodal_content(prompt)
+            response = await self.ai_service.generate_content(prompt)
             # Response is a dict: {"text": "...", "images": [...]}
             
             cleaned_text = response["text"].replace("```json", "").replace("```", "").strip()

@@ -1,4 +1,5 @@
-from typing import TypedDict, List, Dict, Any
+from typing import TypedDict, List, Dict, Any, Annotated
+import operator
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 
@@ -13,16 +14,22 @@ from ..utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 
+# Reducer function to merge dictionaries
+def merge_dicts(a: Dict, b: Dict) -> Dict:
+    return {**a, **b}
+
+# Update State Definition
 class ActivityState(TypedDict):
     story_id: str
     story_text: str
     age: int
     language: str
-    activities: Dict[str, Any]
-    images: Dict[str, str] 
-    completed: List[str]
-    errors: Dict[str, str]
-    retry_count: Dict[str, int]
+    # Use Annotated to handle parallel updates
+    activities: Annotated[Dict[str, Any], merge_dicts]
+    images: Annotated[Dict[str, str], merge_dicts]
+    completed: Annotated[List[str], operator.add]
+    errors: Annotated[Dict[str, str], merge_dicts]
+    retry_count: Annotated[Dict[str, int], merge_dicts]
 
 # Initialize Components
 # (Note: ImageService is now initialized INSIDE agents)
@@ -123,7 +130,7 @@ workflow.add_edge("start", "gen_crt")
 workflow.add_edge("start", "gen_mat")
 
 # Define Flows (Standardized: Gen -> Val -> Retry/Save)
-    for key, prefix in [("mcq", "mcq"), ("art", "art"), ("creative", "crt"), ("matching", "mat")]:
+for key, prefix in [("mcq", "mcq"), ("art", "art"), ("creative", "crt"), ("matching", "mat")]:
     gen, val, save = f"gen_{prefix}", f"val_{prefix}", f"save_{prefix}"
     
     workflow.add_edge(gen, val)
