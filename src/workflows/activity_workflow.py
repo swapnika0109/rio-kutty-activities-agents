@@ -48,6 +48,8 @@ def validate_matching_node(state: ActivityState): return validator.validate_matc
 # --- Save Nodes ---
 async def save_mcq_node(state: ActivityState):
     if "mcq" in state.get("activities", {}):
+        data = state["activities"]["mcq"]
+        logger.info(f"Saving MCQ for story {state['story_id']}: {data}")
         await firestore_service.save_activity(state["story_id"], "mcq", state["activities"]["mcq"])
     return state
 

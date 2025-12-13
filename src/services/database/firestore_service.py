@@ -19,7 +19,7 @@ class FirestoreService:
                 database=settings.FIRESTORE_DATABASE
             )
 
-    async def save_activity(self, story_id: str, activity_type: str, activity_data: dict):
+    async def save_activity(self, story_id: str, activity_type: str, activity_data: list):
         """
         Saves an activity and updates the story status in a single batch.
         """
@@ -40,8 +40,17 @@ class FirestoreService:
             
             # 3. Save the actual activity data
             activity_ref = self.db.collection('activities_v1').document() # Auto-ID
+            
+            # Handle different data types for activity_data
+            if isinstance(activity_data, list):
+                data_to_save = {'items': activity_data}
+            elif isinstance(activity_data, dict):
+                data_to_save = activity_data
+            else:
+                data_to_save = {'data': activity_data}
+
             batch.set(activity_ref, {
-                **activity_data,
+                **data_to_save,
                 'story_id': story_id,
                 'type': activity_type,
                 'created_at': firestore.SERVER_TIMESTAMP
