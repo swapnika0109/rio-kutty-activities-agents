@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     # Cost & CO2 Optimization: AI Models
     # Default to Flash for speed and lower cost/CO2
     GEMINI_MODEL: str = "gemini-2.0-flash-lite" 
+    MULTIMODAL_MODEL: str = "gemini-2.5-flash-image"
     IMAGE_MODEL: str = "imagen-3"
 
     # Cost Optimization: Limits

@@ -95,36 +95,35 @@ workflow = StateGraph(ActivityState)
 # Add Nodes
 workflow.add_node("start", lambda s: s) # Dummy start node
 
-# Activity 1: MCQ
+# # Activity 1: MCQ
 workflow.add_node("gen_mcq", generate_mcq_node)
 workflow.add_node("val_mcq", validate_mcq_node)
 workflow.add_node("save_mcq", save_mcq_node)
 
-# # Activity 2: Art
-# workflow.add_node("gen_art", generate_art_node)
-# workflow.add_node("val_art", validate_art_node)
-# workflow.add_node("save_art", save_art_node)
+# Activity 2: Art
+workflow.add_node("gen_art", generate_art_node)
+workflow.add_node("val_art", validate_art_node)
+workflow.add_node("save_art", save_art_node)
 
 # # Activity 3: Creative
-# workflow.add_node("gen_crt", generate_creative_node)
-# workflow.add_node("val_crt", validate_creative_node)
-# workflow.add_node("save_crt", save_creative_node)
+workflow.add_node("gen_crt", generate_creative_node)
+workflow.add_node("val_crt", validate_creative_node)
+workflow.add_node("save_crt", save_creative_node)
 
 # # Activity 4: Matching
-# workflow.add_node("gen_mat", generate_matching_node)
-# workflow.add_node("val_mat", validate_matching_node)
-# workflow.add_node("save_mat", save_matching_node)
+workflow.add_node("gen_mat", generate_matching_node)
+workflow.add_node("val_mat", validate_matching_node)
+workflow.add_node("save_mat", save_matching_node)
 
 # Entry & Fan-out
 workflow.set_entry_point("start")
 workflow.add_edge("start", "gen_mcq")
-# workflow.add_edge("start", "gen_art")
-# workflow.add_edge("start", "gen_crt")
-# workflow.add_edge("start", "gen_mat")
+workflow.add_edge("start", "gen_art")
+workflow.add_edge("start", "gen_crt")
+workflow.add_edge("start", "gen_mat")
 
 # Define Flows (Standardized: Gen -> Val -> Retry/Save)
-for key, prefix in [("mcq", "mcq")]:
-# , ("art", "art"), ("creative", "crt"), ("matching", "mat")]:
+    for key, prefix in [("mcq", "mcq"), ("art", "art"), ("creative", "crt"), ("matching", "mat")]:
     gen, val, save = f"gen_{prefix}", f"val_{prefix}", f"save_{prefix}"
     
     workflow.add_edge(gen, val)

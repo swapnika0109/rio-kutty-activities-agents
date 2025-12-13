@@ -20,13 +20,12 @@ class ArtAgent:
         {{
             "title": "Activity Title",
             "description": "Step-by-step instructions",
-            "materials_needed": ["paper", "crayons"],
-            "image": "The image of the art/drawing"
+            "materials_needed": ["paper", "crayons"]
         }}
         """
         
         try:
-            response = await self.ai_service.generate_multimodal_content(prompt)
+            response = await self.ai_service.generate_content(prompt)
             
             cleaned_text = response["text"].replace("```json", "").replace("```", "").strip()
             activity_data = json.loads(cleaned_text)

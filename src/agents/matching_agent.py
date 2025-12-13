@@ -22,13 +22,12 @@ class MatchingAgent:
             "pairs": [
                 {{"item_1": "Description A", "item_2": "Description B"}},
                 {{"item_1": "Description C", "item_2": "Description D"}}
-            ],
-            "image": "The image of the matching game" 
+            ]
         }}
         """
         
         try:
-            response = await self.ai_service.generate_multimodal_content(prompt)
+            response = await self.ai_service.generate_content(prompt)
             
             cleaned_text = response["text"].replace("```json", "").replace("```", "").strip()
             activity_data = json.loads(cleaned_text)
