@@ -10,7 +10,7 @@ class MatchingAgent:
 
     async def generate(self, state: dict):
         logger.info("Starting Matching activity generation...")
-        summary = state.get("story_summary", "")
+        summary = state.get("story_text", "")
         age = state.get("age", 5)
         
         prompt = f"""

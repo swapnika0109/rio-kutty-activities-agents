@@ -11,7 +11,6 @@ app = FastAPI()
 
 class ActivityRequest(BaseModel):
     story_id: str
-    story_text: str
     age: int
     language: str = "en"
 
@@ -26,9 +25,9 @@ async def run_workflow(request: ActivityRequest):
         
         initial_state = {
             "story_id": request.story_id,
-            "story_text": story.story_text,
+            "story_text": story.get("story_text", ""), # Mapping DB 'story_text' to state 'story_summary'
             "age": request.age,
-            "language": story.language,
+            "language": story.get("language", "en"),
             "activities": {},
             "completed": [],
             "errors": {},
