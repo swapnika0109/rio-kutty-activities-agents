@@ -1,8 +1,8 @@
 from fastapi import FastAPI, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 import uvicorn
-from ..workflows.activity_workflow import app_workflow
-from ..utils.logger import setup_logger
+from .workflows.activity_workflow import app_workflow
+from .utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 

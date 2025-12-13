@@ -1,6 +1,6 @@
 from google.cloud import firestore
-from ..utils.config import get_settings
-from ..utils.logger import setup_logger
+from ...utils.config import get_settings
+from ...utils.logger import setup_logger
 
 settings = get_settings()
 logger = setup_logger(__name__)

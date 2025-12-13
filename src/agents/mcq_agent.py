@@ -1,13 +1,16 @@
 import json
 from ..services.ai_service import AIService
 from ..utils.logger import setup_logger
+
+logger = setup_logger(__name__)
+
 class MCQAgent:
     def __init__(self):
         self.ai_service = AIService()
 
 
     async def generate_mcq(self, state: dict):
-         """
+        """
         Generates MCQs based on the story summary.
         Expected state: { "story_summary": "...", "age": 5, ... }
         """
@@ -38,6 +41,4 @@ class MCQAgent:
             logger.error(f"MCQ generation failed: {str(e)}")
             return {
                 "errors": {**state.get("errors", {}), "mcq": str(e)}
-            }#### 2. `src/agents/validator_agent.py`
-            
-
+            }

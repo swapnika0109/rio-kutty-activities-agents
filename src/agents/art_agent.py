@@ -26,14 +26,16 @@ class ArtAgent:
         """
         
         try:
-            response_text = await self.ai_service.generate_multimodal_content(prompt)
-            cleaned_text = response_text.replace("", "").replace("```", "").strip()
+            response = await self.ai_service.generate_multimodal_content(prompt)
+            
+            cleaned_text = response["text"].replace("```json", "").replace("```", "").strip()
             activity_data = json.loads(cleaned_text)
             
             return {
                 "activities": {**state.get("activities", {}), "art": activity_data},
-                "completed": state.get("completed", []) + ["art_text"]
+                "images": {**state.get("images", {}), "art": response["images"]},
+                "completed": state.get("completed", []) + ["art"]
             }
         except Exception as e:
             logger.error(f"Art Agent failed: {e}")
-            return {"errors": {**state.get("errors", {}), "art": str(e)}}#### 2. `src/agents/creative_agent.py`
+            return {"errors": {**state.get("errors", {}), "art": str(e)}}
