@@ -2,6 +2,7 @@ from fastapi import FastAPI, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 import uvicorn
 from .workflows.activity_workflow import app_workflow
+from .services.database.firestore_service import FirestoreService
 from .utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -10,17 +11,24 @@ app = FastAPI()
 
 class ActivityRequest(BaseModel):
     story_id: str
-    story_summary: str
+    story_text: str
     age: int
     language: str = "en"
 
 async def run_workflow(request: ActivityRequest):
     """Background task to run the LangGraph workflow"""
     try:
+        # Get the story from the database
+        story = await FirestoreService().get_story(request.story_id)
+        if not story:
+            logger.error(f"Story with ID {request.story_id} not found")
+            raise Exception(f"Story {request.story_id} not found")
+        
         initial_state = {
             "story_id": request.story_id,
-            "story_summary": request.story_summary,
+            "story_text": story.story_text,
             "age": request.age,
+            "language": story.language,
             "activities": {},
             "completed": [],
             "errors": {},

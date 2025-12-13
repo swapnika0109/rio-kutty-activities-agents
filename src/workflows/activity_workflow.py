@@ -15,8 +15,9 @@ logger = setup_logger(__name__)
 
 class ActivityState(TypedDict):
     story_id: str
-    story_summary: str
+    story_text: str
     age: int
+    language: str
     activities: Dict[str, Any]
     images: Dict[str, str] 
     completed: List[str]
