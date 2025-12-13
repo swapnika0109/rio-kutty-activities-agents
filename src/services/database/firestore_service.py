@@ -24,11 +24,21 @@ class FirestoreService:
         Saves an activity and updates the story status in a single batch.
         """
         try:
+            # 1. Find the story document by querying the 'story_id' field
+            # (Since document ID != story_id)
+            story_query = self.db.collection('riostories_v3').where("story_id", "==", story_id).limit(1)
+            docs = list(story_query.stream())
+            
+            if not docs:
+                logger.error(f"Story with ID {story_id} not found in riostories_v3")
+                raise Exception(f"Story {story_id} not found")
+            
+            story_ref = docs[0].reference
+
+            # 2. Prepare Batch
             batch = self.db.batch()
             
-            # 1. Save the actual activity data
-            # Assuming a collection structure like: stories/{story_id}/activities/{activity_type}
-            # Or a separate top-level collection. Let's use top-level as per plan.
+            # 3. Save the actual activity data
             activity_ref = self.db.collection('activities_v1').document() # Auto-ID
             batch.set(activity_ref, {
                 **activity_data,
@@ -37,8 +47,7 @@ class FirestoreService:
                 'created_at': firestore.SERVER_TIMESTAMP
             })
 
-            # 2. Update the parent story to say this activity is ready
-            story_ref = self.db.collection('riostories_v3').document(story_id)
+            # 4. Update the parent story status
             batch.update(story_ref, {
                 f'activities.{activity_type}': 'ready',
                 'updated_at': firestore.SERVER_TIMESTAMP
@@ -51,3 +60,20 @@ class FirestoreService:
         except Exception as e:
             logger.error(f"Firestore save failed: {str(e)}")
             raise e
+
+    async def get_story(self, story_id: str):
+        """
+        Gets a story from the database by querying the story_id field.
+        """
+        try:
+            query = self.db.collection('riostories_v3').where("story_id", "==", story_id).limit(1)
+            docs = list(query.stream())
+            
+            if not docs:
+                return None
+                
+            return docs[0].to_dict()
+
+        except Exception as e:
+            logger.error(f"Firestore get failed: {str(e)}")
+            return None

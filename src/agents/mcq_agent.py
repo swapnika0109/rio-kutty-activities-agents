@@ -9,13 +9,13 @@ class MCQAgent:
         self.ai_service = AIService()
 
 
-    async def generate_mcq(self, state: dict):
+    async def generate(self, state: dict):
         """
         Generates MCQs based on the story summary.
-        Expected state: { "story_summary": "...", "age": 5, ... }
+        Expected state: { "story_text": "...", "age": 5, ... }
         """
         logger.info("Starting MCQ generation...")
-        summary = state.get("story_summary", "")
+        summary = state.get("story_text", "")
         age = state.get("age", 5)
         prompt = f"""
          Create 3 multiple-choice questions for a {age}-year-old based on this story:
