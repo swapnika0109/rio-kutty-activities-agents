@@ -18,6 +18,7 @@ class AIService:
         # Ensure we use a model that supports image generation if requested
         # e.g., "gemini-2.0-flash-exp" or "gemini-2.5-flash-image"
         self.model_name = settings.GEMINI_MODEL 
+        self.multimodal_model_name = settings.MULTIMODAL_MODEL
 
     @lru_cache(maxsize=100)
     def _generate_cached(self, prompt_hash: str, prompt: str):
@@ -75,7 +76,7 @@ class AIService:
             # Using streaming to handle mixed content
             # Note: This is synchronous in the SDK currently, but wrapped in async method
             for chunk in self.client.models.generate_content_stream(
-                model=self.model_name,
+                model=self.multimodal_model_name,
                 contents=contents,
                 config=generate_content_config,
             ):
