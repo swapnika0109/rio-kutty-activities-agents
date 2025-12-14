@@ -29,12 +29,12 @@ class MatchingAgent:
         try:
             response = await self.ai_service.generate_content(prompt)
             
-            cleaned_text = response["text"].replace("```json", "").replace("```", "").strip()
+            cleaned_text = response.replace("```json", "").replace("```", "").strip()
             activity_data = json.loads(cleaned_text)
             
             return {
                 "activities": {**state.get("activities", {}), "matching": activity_data},
-                "images": {**state.get("images", {}), "matching": response["images"]},
+                # "images": {**state.get("images", {}), "matching": response["images"]},
                 "completed": state.get("completed", []) + ["matching"]
             }
         except Exception as e:

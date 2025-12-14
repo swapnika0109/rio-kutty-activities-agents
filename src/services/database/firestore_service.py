@@ -18,12 +18,35 @@ class FirestoreService:
                 project=settings.GOOGLE_CLOUD_PROJECT, 
                 database=settings.FIRESTORE_DATABASE
             )
+            
+    async def check_if_activity_exists(self, story_id: str, activity_type: str):
+        """
+        Checks if an activity already exists for a story.
+        """
+        try:
+            activity_query = self.db.collection('activities_v1').where("story_id", "==", story_id).where("type", "==", activity_type).limit(1)
+            doc_stream = activity_query.stream()
+            first_doc = next(doc_stream, None)
+            if first_doc:
+                return first_doc.to_dict()
+            return None
+        except Exception as e:
+            logger.error(f"Firestore check if activity exists failed: {str(e)}")
+            return None
 
     async def save_activity(self, story_id: str, activity_type: str, activity_data: list):
         """
         Saves an activity and updates the story status in a single batch.
         """
         try:
+
+            #check if activity_data has already for this tory id and this activity type
+            activity_query = self.db.collection('activities_v1').where("story_id", "==", story_id).where("type", "==", activity_type).limit(1)
+            docs = list(activity_query.stream())
+            if docs:
+                logger.info(f"Activity with type {activity_type} already exists for story {story_id}")
+                return
+
             # 1. Find the story document by querying the 'story_id' field
             # (Since document ID != story_id)
             story_query = self.db.collection('riostories_v3').where("story_id", "==", story_id).limit(1)

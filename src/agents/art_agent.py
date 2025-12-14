@@ -27,12 +27,12 @@ class ArtAgent:
         try:
             response = await self.ai_service.generate_content(prompt)
             
-            cleaned_text = response["text"].replace("```json", "").replace("```", "").strip()
+            cleaned_text = response.replace("```json", "").replace("```", "").strip()
             activity_data = json.loads(cleaned_text)
             
             return {
                 "activities": {**state.get("activities", {}), "art": activity_data},
-                "images": {**state.get("images", {}), "art": response["images"]},
+                # "images": {**state.get("images", {}), "art": response["images"]},
                 "completed": state.get("completed", []) + ["art"]
             }
         except Exception as e:

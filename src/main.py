@@ -22,12 +22,18 @@ async def run_workflow(request: ActivityRequest):
         if not story:
             logger.error(f"Story with ID {request.story_id} not found")
             raise Exception(f"Story {request.story_id} not found")
+
+        config = {
+            "configurable": {
+                "thread_id": request.story_id,
+                "story_id": request.story_id,
+                "story_text": story.get("story_text", ""),
+                "age": request.age,
+                "language": story.get("language", "en"),
+            }
+        }
         
         initial_state = {
-            "story_id": request.story_id,
-            "story_text": story.get("story_text", ""), # Mapping DB 'story_text' to state 'story_summary'
-            "age": request.age,
-            "language": story.get("language", "en"),
             "activities": {},
             "completed": [],
             "errors": {},
@@ -37,7 +43,6 @@ async def run_workflow(request: ActivityRequest):
         # Invoke the workflow
         # Note: In production, use a persistent checkpointer (e.g. Postgres) 
         # instead of MemorySaver to handle restarts.
-        config = {"configurable": {"thread_id": request.story_id}}
         await app_workflow.ainvoke(initial_state, config=config)
         logger.info(f"Workflow completed for story {request.story_id}")
         

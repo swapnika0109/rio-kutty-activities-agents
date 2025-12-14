@@ -2,6 +2,7 @@ from typing import TypedDict, List, Dict, Any, Annotated
 import operator
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
+from langgraph.types import RunnableConfig
 
 # Import Agents
 from ..agents.mcq_agent import MCQAgent
@@ -40,46 +41,61 @@ matching_agent = MatchingAgent()
 validator = ValidatorAgent()
 firestore_service = FirestoreService()
 
+def unpack_config(state: ActivityState, config: RunnableConfig):
+    # Access read only data from config
+    settings = config.get("configurable", {})
+    story_id = settings.get("story_id")
+    story_text = settings.get("story_text")
+    age = settings.get("age")
+    language = settings.get("language")
+    return {**state, "story_id": story_id, "story_text": story_text, "age": age, "language": language}
+
 # --- Generation Nodes ---
-async def generate_mcq_node(state: ActivityState): return await mcq_agent.generate(state)
-async def generate_art_node(state: ActivityState): return await art_agent.generate(state)
-async def generate_creative_node(state: ActivityState): return await creative_agent.generate(state)
-async def generate_matching_node(state: ActivityState): return await matching_agent.generate(state)
+async def generate_mcq_node(state: ActivityState, config: RunnableConfig):
+    return await mcq_agent.generate(unpack_config(state, config))
+
+async def generate_art_node(state: ActivityState, config: RunnableConfig): return await art_agent.generate(unpack_config(state, config))
+async def generate_creative_node(state: ActivityState, config: RunnableConfig): return await creative_agent.generate(unpack_config(state, config))
+async def generate_matching_node(state: ActivityState, config: RunnableConfig): return await matching_agent.generate(unpack_config(state, config))
 
 # --- Validation Nodes ---
-def validate_mcq_node(state: ActivityState): return validator.validate_mcq(state)
-def validate_art_node(state: ActivityState): return validator.validate_art(state)
-def validate_creative_node(state: ActivityState): return validator.validate_creative(state)
-def validate_matching_node(state: ActivityState): return validator.validate_matching(state)
+def validate_mcq_node(state: ActivityState, config: RunnableConfig): return validator.validate_mcq(unpack_config(state, config))
+def validate_art_node(state: ActivityState, config: RunnableConfig): return validator.validate_art(unpack_config(state, config))
+def validate_creative_node(state: ActivityState, config: RunnableConfig): return validator.validate_creative(unpack_config(state, config))
+def validate_matching_node(state: ActivityState, config: RunnableConfig): return validator.validate_matching(unpack_config(state, config))
 
 # --- Save Nodes ---
-async def save_mcq_node(state: ActivityState):
+async def save_mcq_node(state: ActivityState, config: RunnableConfig):
+    db_data = unpack_config(state, config)
     if "mcq" in state.get("activities", {}):
         data = state["activities"]["mcq"]
-        logger.info(f"Saving MCQ for story {state['story_id']}: {data}")
-        await firestore_service.save_activity(state["story_id"], "mcq", state["activities"]["mcq"])
-    return state
+        logger.info(f"Saving MCQ for story {db_data['story_id']}: {data}")
+        await firestore_service.save_activity(db_data["story_id"], "mcq", db_data["activities"]["mcq"])
+    return {}
 
-async def save_art_node(state: ActivityState):
+async def save_art_node(state: ActivityState, config: RunnableConfig):
+    db_data = unpack_config(state, config)
     if "art" in state.get("activities", {}):
         data = state["activities"]["art"]
-        data["image_url"] = state.get("images", {}).get("art")
-        await firestore_service.save_activity(state["story_id"], "art", data)
-    return state
+        # data["image_url"] = db_data.get("images", {}).get("art")
+        await firestore_service.save_activity(db_data["story_id"], "art", db_data["activities"]["art"])
+    return {}
 
-async def save_creative_node(state: ActivityState):
+async def save_creative_node(state: ActivityState, config: RunnableConfig):
+    db_data = unpack_config(state, config)
     if "creative" in state.get("activities", {}):
         data = state["activities"]["creative"]
-        data["image_url"] = state.get("images", {}).get("creative")
-        await firestore_service.save_activity(state["story_id"], "creative", data)
-    return state
+        # data["image_url"] = db_data.get("images", {}).get("creative")
+        await firestore_service.save_activity(db_data["story_id"], "creative", db_data["activities"]["creative"])
+    return {}
 
-async def save_matching_node(state: ActivityState):
+async def save_matching_node(state: ActivityState, config: RunnableConfig):
+    db_data = unpack_config(state, config)
     if "matching" in state.get("activities", {}):
         data = state["activities"]["matching"]
-        data["image_urls"] = state.get("images", {}).get("matching")
-        await firestore_service.save_activity(state["story_id"], "matching", data)
-    return state
+        # data["image_urls"] = db_data.get("images", {}).get("matching")
+        await firestore_service.save_activity(db_data["story_id"], "matching", db_data["activities"]["matching"])
+    return {}
 
 # --- Routing Logic ---
 def create_retry_logic(activity_type: str):
@@ -95,6 +111,7 @@ def create_retry_logic(activity_type: str):
             return "retry"
         return "fail"
     return should_retry
+    
 
 # --- Graph Construction ---
 workflow = StateGraph(ActivityState)

@@ -17,32 +17,44 @@ class ValidatorAgent:
             return self._increment_retry(state, "mcq")
             
         logger.info("MCQ validation passed.")
-        return state
+        return {
+                "activities": {**state.get("activities", {}), "mcq": data},
+                # "images": {**state.get("images", {}), "art": response["images"]},
+               "completed": ["mcq"]
+            }
 
     def validate_art(self, state: dict):
         activities = state.get("activities", {})
         data = activities.get("art")
         
         # Check for required fields
-        required = ["title", "description", "image_prompt"]
+        required = ["title", "description"]
         if not data or not all(k in data for k in required):
             logger.warning("Art validation failed.")
             return self._increment_retry(state, "art")
             
         logger.info("Art validation passed.")
-        return state
+        return {
+                "activities": {**state.get("activities", {}), "art": data},
+                # "images": {**state.get("images", {}), "art": response["images"]},
+               "completed": ["art"]
+            }
 
     def validate_creative(self, state: dict):
         activities = state.get("activities", {})
         data = activities.get("creative")
         
-        required = ["title", "instructions", "image_prompt"]
+        required = ["title", "instructions"]
         if not data or not all(k in data for k in required):
             logger.warning("Creative validation failed.")
             return self._increment_retry(state, "creative")
             
         logger.info("Creative validation passed.")
-        return state
+        return {
+                "activities": {**state.get("activities", {}), "creative": data},
+                # "images": {**state.get("images", {}), "art": response["images"]},
+               "completed": ["creative"]
+            }
 
     def validate_matching(self, state: dict):
         activities = state.get("activities", {})
@@ -53,4 +65,8 @@ class ValidatorAgent:
             return self._increment_retry(state, "matching")
             
         logger.info("Matching validation passed.")
-        return state
+        return {
+                "activities": {**state.get("activities", {}), "matching": data},
+                # "images": {**state.get("images", {}), "art": response["images"]},
+               "completed": ["matching"]
+            }
