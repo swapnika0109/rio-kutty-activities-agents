@@ -45,10 +45,10 @@ jobs:
           # Cost Optimization Flags:
           # --min-instances=0: Scales to zero when not in use (pay nothing)
           # --max-instances=5: Prevents runaway costs
-          # --memory=512Mi: Lowest memory tier
+          # --memory=1Gi: Increased to 1GB to prevent startup crashes with AI libraries
           # --cpu=1: Lowest CPU tier
           # --no-cpu-throttling: false (default) implies CPU is only allocated during request processing
-          flags: '--min-instances=0 --max-instances=5 --memory=512Mi --cpu=1'
+          flags: '--min-instances=0 --max-instances=5 --memory=1Gi --cpu=1'
           env_vars: |
             APP_ENV=production
             LOG_LEVEL=INFO
