@@ -27,4 +27,4 @@ EXPOSE 8080
 # Ensure PATH includes the virtualenv created by uv
 ENV PATH="/app/.venv/bin:$PATH"
 
-CMD ["sh", "-c", "uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
+CMD ["sh", "-c", "uv run uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
