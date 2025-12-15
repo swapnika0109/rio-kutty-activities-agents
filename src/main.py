@@ -8,7 +8,13 @@ from .utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 
+logger.info("Starting application...")
+
 app = FastAPI()
+
+@app.on_event("startup")
+async def startup_event():
+    logger.info("Application startup complete.")
 
 class ActivityRequest(BaseModel):
     story_id: str
