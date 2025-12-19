@@ -53,5 +53,4 @@ jobs:
             APP_ENV=production
             LOG_LEVEL=INFO
             GOOGLE_API_KEY=${{ secrets.GOOGLE_API_KEY }}
-            GOOGLE_CLOUD_PROJECT=${{ env.PROJECT_ID }}
 

@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     
     # Google Cloud
-    GOOGLE_CLOUD_PROJECT: str
+    GOOGLE_CLOUD_PROJECT : str = "riokutty"
     GOOGLE_API_KEY: str
     FIRESTORE_DATABASE: str = "(default)"
     GOOGLE_APPLICATION_CREDENTIALS: str = None # Path to service account JSON
