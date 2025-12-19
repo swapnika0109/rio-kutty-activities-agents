@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     GOOGLE_CLOUD_PROJECT : str = "riokutty"
     GOOGLE_API_KEY: str
     FIRESTORE_DATABASE: str = "(default)"
-    GOOGLE_APPLICATION_CREDENTIALS: str = None # Path to service account JSON
+    GOOGLE_APPLICATION_CREDENTIALS: str | None = None # Path to service account JSON
     
     # Cost & CO2 Optimization: AI Models
     # Default to Flash for speed and lower cost/CO2
