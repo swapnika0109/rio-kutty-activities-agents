@@ -7,17 +7,23 @@ logger = setup_logger(__name__)
 
 class FirestoreService:
     def __init__(self):
-        if settings.GOOGLE_APPLICATION_CREDENTIALS:
-             self.db = firestore.Client.from_service_account_json(
-                json_credentials_path=settings.GOOGLE_APPLICATION_CREDENTIALS,
-                project=settings.GOOGLE_CLOUD_PROJECT, 
-                database=settings.FIRESTORE_DATABASE
-            )
-        else:
-            self.db = firestore.Client(
-                project=settings.GOOGLE_CLOUD_PROJECT, 
-                database=settings.FIRESTORE_DATABASE
-            )
+        self._db = None
+
+    @property
+    def db(self):
+        if self._db is None:
+            if settings.GOOGLE_APPLICATION_CREDENTIALS:
+                self._db = firestore.Client.from_service_account_json(
+                    json_credentials_path=settings.GOOGLE_APPLICATION_CREDENTIALS,
+                    project=settings.GOOGLE_CLOUD_PROJECT, 
+                    database=settings.FIRESTORE_DATABASE
+                )
+            else:
+                self._db = firestore.Client(
+                    project=settings.GOOGLE_CLOUD_PROJECT, 
+                    database=settings.FIRESTORE_DATABASE
+                )
+        return self._db
             
     async def check_if_activity_exists(self, story_id: str, activity_type: str):
         """

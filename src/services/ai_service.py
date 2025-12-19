@@ -14,11 +14,17 @@ logger = setup_logger(__name__)
 class AIService:
     def __init__(self):
         # Initialize the new Client from google-genai
-        self.client = genai.Client(api_key=settings.GOOGLE_API_KEY)
+        self._client = None
         # Ensure we use a model that supports image generation if requested
         # e.g., "gemini-2.0-flash-exp" or "gemini-2.5-flash-image"
         self.model_name = settings.GEMINI_MODEL 
         self.multimodal_model_name = settings.MULTIMODAL_MODEL
+
+    @property
+    def client(self):
+        if self._client is None:
+            self._client = genai.Client(api_key=settings.GOOGLE_API_KEY)
+        return self._client
 
     @lru_cache(maxsize=100)
     def _generate_cached(self, prompt_hash: str, prompt: str):
