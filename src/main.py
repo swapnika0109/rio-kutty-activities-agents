@@ -82,7 +82,7 @@ async def pubsub_handler(pubsub_msg: PubSubMessage):
     """
     logger.info(f"Received request for pubsub activity generation {pubsub_msg}")
     if "data" not in pubsub_msg:
-        return Response(status_code=400, message="Invalid pubsub message")
+        return Response(status_code=status.HTTP_400_BAD_REQUEST)
     
     try:
         decoded_data = base64.b64decode(pubsub_msg["data"]).decode("utf-8")
@@ -90,10 +90,10 @@ async def pubsub_handler(pubsub_msg: PubSubMessage):
         logger.info(f"Received Message: {decoded_data}")
         ActivityRequest(story_id=data_json["story_id"], age=data_json["age"], language=data_json["language"])
         background_tasks.add_task(run_workflow, request)
-        return Response(status_code=status.HTTP_202_ACCEPTED, message="Activity generation started")
+        return Response(status_code=status.HTTP_202_ACCEPTED)
     except Exception as e:
         logger.error(f"Error processing pubsub message: {e}")
-        return Response(status_code=status.HTTP_400_BAD_REQUEST, message="Invalid pubsub message")
+        return Response(status_code=status.HTTP_400_BAD_REQUEST)
 
 @app.get("/health")
 async def health_check():
