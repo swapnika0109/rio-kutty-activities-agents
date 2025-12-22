@@ -79,7 +79,7 @@ async def pubsub_handler(request: PubSubMessage):
     Endpoint called by the Go backend.
     Returns immediately (202 Accepted) and processes in background.
     """
-    logger.info(f"Received request for pubsub activity generation {request.Message}")
+    logger.info(f"Received request for pubsub activity generation {request}")
     pubsub_msg = request.Message
     if "data" not in pubsub_msg:
         return Response(status_code=400, message="Invalid pubsub message")
@@ -87,12 +87,12 @@ async def pubsub_handler(request: PubSubMessage):
     try:
         decoded_data = base64.b64decode(pubsub_msg["data"]).decode("utf-8")
         data_json = json.loads(decoded_data)
-        print(f"Received Message: {decoded_data}")
+        logger.info(f"Received Message: {decoded_data}")
         ActivityRequest(story_id=data_json["story_id"], age=data_json["age"], language=data_json["language"])
         background_tasks.add_task(run_workflow, request)
         return Response(status_code=status.HTTP_202_ACCEPTED, message="Activity generation started")
     except Exception as e:
-        print(f"Error processing pubsub message: {e}")
+        logger.error(f"Error processing pubsub message: {e}")
         return Response(status_code=status.HTTP_400_BAD_REQUEST, message="Invalid pubsub message")
 
 @app.get("/health")
