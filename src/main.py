@@ -74,13 +74,12 @@ async def generate_activities(request: ActivityRequest, background_tasks: Backgr
     return {"status": "accepted", "message": "Activity generation started", "story_id": request.story_id}
 
 @app.post("/pubsub-handler")
-async def pubsub_handler(request: PubSubMessage):
+async def pubsub_handler(pubsub_msg: PubSubMessage):
     """
     Endpoint called by the Go backend.
     Returns immediately (202 Accepted) and processes in background.
     """
     logger.info(f"Received request for pubsub activity generation {request}")
-    pubsub_msg = request.Message
     if "data" not in pubsub_msg:
         return Response(status_code=400, message="Invalid pubsub message")
     
