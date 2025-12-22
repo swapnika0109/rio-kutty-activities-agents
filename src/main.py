@@ -79,7 +79,7 @@ async def pubsub_handler(pubsub_msg: PubSubMessage):
     Endpoint called by the Go backend.
     Returns immediately (202 Accepted) and processes in background.
     """
-    logger.info(f"Received request for pubsub activity generation {request}")
+    logger.info(f"Received request for pubsub activity generation {pubsub_msg}")
     if "data" not in pubsub_msg:
         return Response(status_code=400, message="Invalid pubsub message")
     
