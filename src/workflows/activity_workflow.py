@@ -125,17 +125,21 @@ async def route_start(state: ActivityState, config: RunnableConfig):
     story_id = config["configurable"]["story_id"]
     nodes_to_run = []
     
-    # Check each activity type
-    # You can also filter this list based on user input 'activity_types' if you added that to config
-    target_activities = ["mcq", "art", "creative", "matching"]
+    # Map activity types to their node name prefixes
+    type_to_prefix = {
+        "mcq": "mcq",
+        "art": "art",
+        "creative": "crt",
+        "matching": "mat"
+    }
     
-    for activity_type in target_activities:
-        # Check if it exists in DB (returns True/False or Doc)
+    for activity_type, prefix in type_to_prefix.items():
+        # Check if it exists in DB
         exists = await firestore_service.check_if_activity_exists(story_id, activity_type)
         
         if not exists:
             # If NOT exists, we want to run the generator
-            nodes_to_run.append(f"gen_{activity_type}")
+            nodes_to_run.append(f"gen_{prefix}")
         else:
             logger.info(f"Skipping {activity_type} for {story_id} - already exists.")
             

@@ -61,7 +61,7 @@ async def run_workflow(request: ActivityRequest):
         logger.info(f"Workflow completed for story {request.story_id}")
         
     except Exception as e:
-        logger.error(f"Workflow failed for story {request.story_id}: {e}")
+        logger.exception(f"Workflow failed for story {request.story_id}: {e}")
         
 
 @app.post("/generate-activities")
