@@ -12,16 +12,24 @@ class FirestoreService:
     @property
     def db(self):
         if self._db is None:
+            project = settings.GOOGLE_CLOUD_PROJECT
+            database = settings.FIRESTORE_DATABASE
+            
+            logger.info(f"Initializing Firestore client for project: {project}, database: {database}")
+            
             if settings.GOOGLE_APPLICATION_CREDENTIALS:
+                logger.info(f"Using service account key from: {settings.GOOGLE_APPLICATION_CREDENTIALS}")
                 self._db = firestore.Client.from_service_account_json(
                     json_credentials_path=settings.GOOGLE_APPLICATION_CREDENTIALS,
-                    project=settings.GOOGLE_CLOUD_PROJECT, 
-                    database=settings.FIRESTORE_DATABASE
+                    project=project, 
+                    database=database
                 )
             else:
+                logger.info("Using default Google Application Credentials (ADC)")
+                # When running in Cloud Run, we should try to let it auto-detect project if not explicitly set
                 self._db = firestore.Client(
-                    project=settings.GOOGLE_CLOUD_PROJECT, 
-                    database=settings.FIRESTORE_DATABASE
+                    project=project, 
+                    database=database
                 )
         return self._db
             
