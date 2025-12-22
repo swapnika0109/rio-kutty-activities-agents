@@ -1,4 +1,4 @@
-from fastapi import FastAPI, BackgroundTasks, HTTPException,Response
+from fastapi import FastAPI, BackgroundTasks, HTTPException, Response, status
 from pydantic import BaseModel
 import uvicorn
 import base64
@@ -24,8 +24,9 @@ class ActivityRequest(BaseModel):
     language: str = "en"
 
 class PubSubMessage(BaseModel):
-    message: dict
-    subscription: str
+    message: dict = None
+    subscription: str = None
+    data: str = None
 
 async def run_workflow(request: ActivityRequest):
     """Background task to run the LangGraph workflow"""
@@ -74,21 +75,37 @@ async def generate_activities(request: ActivityRequest, background_tasks: Backgr
     return {"status": "accepted", "message": "Activity generation started", "story_id": request.story_id}
 
 @app.post("/pubsub-handler")
-async def pubsub_handler(pubsub_msg: PubSubMessage):
+async def pubsub_handler(pubsub_msg: PubSubMessage, background_tasks: BackgroundTasks):
     """
     Endpoint called by the Go backend.
     Returns immediately (202 Accepted) and processes in background.
     """
     logger.info(f"Received request for pubsub activity generation {pubsub_msg}")
-    if "data" not in pubsub_msg:
+    
+    # Handle both wrapped and direct data formats
+    data = None
+    if pubsub_msg.data:
+        data = pubsub_msg.data
+    elif pubsub_msg.message and "data" in pubsub_msg.message:
+        data = pubsub_msg.message["data"]
+        
+    if not data:
+        logger.error("No data found in pubsub message")
         return Response(status_code=status.HTTP_400_BAD_REQUEST)
     
     try:
-        decoded_data = base64.b64decode(pubsub_msg["data"]).decode("utf-8")
+        decoded_data = base64.b64decode(data).decode("utf-8")
         data_json = json.loads(decoded_data)
         logger.info(f"Received Message: {decoded_data}")
-        ActivityRequest(story_id=data_json["story_id"], age=data_json["age"], language=data_json["language"])
-        background_tasks.add_task(run_workflow, request)
+        
+        # Parse activity request
+        activity_request = ActivityRequest(
+            story_id=data_json["story_id"],
+            age=data_json["age"],
+            language=data_json.get("language", "en")
+        )
+        
+        background_tasks.add_task(run_workflow, activity_request)
         return Response(status_code=status.HTTP_202_ACCEPTED)
     except Exception as e:
         logger.error(f"Error processing pubsub message: {e}")
