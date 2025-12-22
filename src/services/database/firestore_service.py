@@ -1,7 +1,7 @@
 from google.cloud import firestore
 from ...utils.config import get_settings
 from ...utils.logger import setup_logger
-
+from google.cloud.firestore_v1.base_query import FieldFilter
 settings = get_settings()
 logger = setup_logger(__name__)
 
@@ -38,7 +38,10 @@ class FirestoreService:
         Checks if an activity already exists for a story.
         """
         try:
-            activity_query = self.db.collection('activities_v1').where("story_id", "==", story_id).where("type", "==", activity_type).limit(1)
+            activity_query = self.db.collection('activities_v1') \
+                .where(filter=FieldFilter("story_id", "==", story_id)) \
+                .where(filter=FieldFilter("type", "==", activity_type)) \
+                .limit(1)
             doc_stream = activity_query.stream()
             first_doc = next(doc_stream, None)
             if first_doc:
