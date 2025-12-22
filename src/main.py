@@ -1,6 +1,8 @@
 from fastapi import FastAPI, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 import uvicorn
+import base64
+import json
 import os
 from .workflows.activity_workflow import app_workflow
 from .services.database.firestore_service import FirestoreService
@@ -20,6 +22,10 @@ class ActivityRequest(BaseModel):
     story_id: str
     age: int
     language: str = "en"
+
+class PubSubMessage(BaseModel):
+    message: dict
+    subscription: str
 
 async def run_workflow(request: ActivityRequest):
     """Background task to run the LangGraph workflow"""
@@ -55,6 +61,7 @@ async def run_workflow(request: ActivityRequest):
         
     except Exception as e:
         logger.error(f"Workflow failed for story {request.story_id}: {e}")
+        
 
 @app.post("/generate-activities")
 async def generate_activities(request: ActivityRequest, background_tasks: BackgroundTasks):
@@ -65,6 +72,28 @@ async def generate_activities(request: ActivityRequest, background_tasks: Backgr
     logger.info(f"Received request for story {request.story_id}")
     background_tasks.add_task(run_workflow, request)
     return {"status": "accepted", "message": "Activity generation started", "story_id": request.story_id}
+
+@app.post("/pubsub-handler")
+async def pubsub_handler(request: PubSubMessage):
+    """
+    Endpoint called by the Go backend.
+    Returns immediately (202 Accepted) and processes in background.
+    """
+    logger.info(f"Received request for pubsub activity generation {request.Message}")
+    pubsub_msg = request.Message
+    if "data" not in pubsub_msg:
+        return Response(status_code=400, message="Invalid pubsub message")
+    
+    try:
+        decoded_data = base64.b64decode(pubsub_msg["data"]).decode("utf-8")
+        data_json = json.loads(decoded_data)
+        print(f"Received Message: {decoded_data}")
+        ActivityRequest(story_id=data_json["story_id"], age=data_json["age"], language=data_json["language"])
+        background_tasks.add_task(run_workflow, request)
+        return Response(status_code=status.HTTP_202_ACCEPTED, message="Activity generation started")
+    except Exception as e:
+        print(f"Error processing pubsub message: {e}")
+        return Response(status_code=status.HTTP_400_BAD_REQUEST, message="Invalid pubsub message")
 
 @app.get("/health")
 async def health_check():
