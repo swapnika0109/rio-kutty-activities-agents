@@ -32,14 +32,35 @@ class AIService:
         Internal method to cache AI text responses.
         """
         logger.info(f"Generating new content for hash: {prompt_hash[:8]}...")
+
+        generate_content_config = types.GenerateContentConfig(
+            temperature=0.7,
+            max_output_tokens=1000, 
+            safety_settings=[
+                types.SafetySetting(
+                    category="HARM_CATEGORY_HARASSMENT",
+                    threshold="BLOCK_LOW_AND_ABOVE",  # Block few
+                ),
+                types.SafetySetting(
+                    category="HARM_CATEGORY_HATE_SPEECH",
+                    threshold="BLOCK_LOW_AND_ABOVE",  # Block few
+                ),
+                types.SafetySetting(
+                    category="HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                    threshold="BLOCK_LOW_AND_ABOVE",  # Block few
+                ),
+                types.SafetySetting(
+                    category="HARM_CATEGORY_DANGEROUS_CONTENT",
+                    threshold="BLOCK_LOW_AND_ABOVE",  # Block few
+                ),
+            ],
+            response_mime_type="application/json",
+        )
         
         response = self.client.models.generate_content(
             model=self.model_name,
             contents=prompt,
-            config=types.GenerateContentConfig(
-                temperature=0.7,
-                max_output_tokens=1000, 
-            )
+            config=generate_content_config
         )
         return response.text
 
@@ -70,10 +91,29 @@ class AIService:
                     ],
                 ),
             ]
-
             generate_content_config = types.GenerateContentConfig(
-                response_modalities=["IMAGE", "TEXT"],
                 temperature=0.7,
+                max_output_tokens=1000, 
+                safety_settings=[
+                    types.SafetySetting(
+                        category="HARM_CATEGORY_HARASSMENT",
+                        threshold="BLOCK_LOW_AND_ABOVE",  # Block few
+                    ),
+                    types.SafetySetting(
+                        category="HARM_CATEGORY_HATE_SPEECH",
+                        threshold="BLOCK_LOW_AND_ABOVE",  # Block few
+                    ),
+                    types.SafetySetting(
+                        category="HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                        threshold="BLOCK_LOW_AND_ABOVE",  # Block few
+                    ),
+                    types.SafetySetting(
+                        category="HARM_CATEGORY_DANGEROUS_CONTENT",
+                        threshold="BLOCK_LOW_AND_ABOVE",  # Block few
+                    ),
+                ],
+                response_mime_type="application/json",
+                response_modalities=["IMAGE", "TEXT"],
             )
 
             text_parts = []

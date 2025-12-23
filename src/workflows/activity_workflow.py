@@ -7,8 +7,8 @@ from langchain_core.runnables import RunnableConfig
 # Import Agents
 from ..agents.mcq_agent import MCQAgent
 from ..agents.art_agent import ArtAgent
-from ..agents.creative_agent import CreativeAgent
-from ..agents.matching_agent import MatchingAgent
+from ..agents.moral_agent import MoralAgent
+from ..agents.science_agent import ScienceAgent
 from ..agents.validators.validator_agent import ValidatorAgent
 from ..services.database.firestore_service import FirestoreService
 from ..utils.logger import setup_logger
@@ -32,8 +32,8 @@ class ActivityState(TypedDict):
 # Initialize Components
 mcq_agent = MCQAgent()
 art_agent = ArtAgent()
-creative_agent = CreativeAgent()
-matching_agent = MatchingAgent()
+moral_agent = MoralAgent()
+science_agent = ScienceAgent()
 validator = ValidatorAgent()
 firestore_service = FirestoreService()
 
@@ -56,11 +56,11 @@ async def generate_mcq_node(state: ActivityState, config: RunnableConfig):
 async def generate_art_node(state: ActivityState, config: RunnableConfig): 
     return await art_agent.generate(unpack_config(state, config))
 
-async def generate_creative_node(state: ActivityState, config: RunnableConfig): 
-    return await creative_agent.generate(unpack_config(state, config))
+async def generate_moral_node(state: ActivityState, config: RunnableConfig): 
+    return await moral_agent.generate(unpack_config(state, config))
 
-async def generate_matching_node(state: ActivityState, config: RunnableConfig): 
-    return await matching_agent.generate(unpack_config(state, config))
+async def generate_science_node(state: ActivityState, config: RunnableConfig): 
+    return await science_agent.generate(unpack_config(state, config))
 
 # --- Validation Nodes ---
 def validate_mcq_node(state: ActivityState, config: RunnableConfig): 
@@ -69,11 +69,11 @@ def validate_mcq_node(state: ActivityState, config: RunnableConfig):
 def validate_art_node(state: ActivityState, config: RunnableConfig): 
     return validator.validate_art(unpack_config(state, config))
 
-def validate_creative_node(state: ActivityState, config: RunnableConfig): 
-    return validator.validate_creative(unpack_config(state, config))
+def validate_science_node(state: ActivityState, config: RunnableConfig): 
+    return validator.validate_science(unpack_config(state, config))
 
-def validate_matching_node(state: ActivityState, config: RunnableConfig): 
-    return validator.validate_matching(unpack_config(state, config))
+def validate_moral_node(state: ActivityState, config: RunnableConfig): 
+    return validator.validate_moral(unpack_config(state, config))
 
 # --- Save Nodes ---
 async def save_mcq_node(state: ActivityState, config: RunnableConfig):
@@ -91,18 +91,18 @@ async def save_art_node(state: ActivityState, config: RunnableConfig):
         await firestore_service.save_activity(db_data["story_id"], "art", data)
     return {}
 
-async def save_creative_node(state: ActivityState, config: RunnableConfig):
+async def save_science_node(state: ActivityState, config: RunnableConfig):
     db_data = unpack_config(state, config)
-    if "creative" in state.get("activities", {}):
-        data = state["activities"]["creative"]
-        await firestore_service.save_activity(db_data["story_id"], "creative", data)
+    if "science" in state.get("activities", {}):
+        data = state["activities"]["science"]
+        await firestore_service.save_activity(db_data["story_id"], "science", data)
     return {}
 
-async def save_matching_node(state: ActivityState, config: RunnableConfig):
+async def save_moral_node(state: ActivityState, config: RunnableConfig):
     db_data = unpack_config(state, config)
-    if "matching" in state.get("activities", {}):
-        data = state["activities"]["matching"]
-        await firestore_service.save_activity(db_data["story_id"], "matching", data)
+    if "moral" in state.get("activities", {}):
+        data = state["activities"]["moral"]
+        await firestore_service.save_activity(db_data["story_id"], "moral", data)
     return {}
 
 # --- Routing Logic ---
@@ -129,8 +129,8 @@ async def route_start(state: ActivityState, config: RunnableConfig):
     type_to_prefix = {
         "mcq": "mcq",
         "art": "art",
-        "creative": "crt",
-        "matching": "mat"
+        "moral": "mor",
+        "science": "sci"
     }
     
     for activity_type, prefix in type_to_prefix.items():
@@ -162,14 +162,14 @@ workflow.add_node("val_art", validate_art_node)
 workflow.add_node("save_art", save_art_node)
 
 # Activity 3: Creative
-workflow.add_node("gen_crt", generate_creative_node)
-workflow.add_node("val_crt", validate_creative_node)
-workflow.add_node("save_crt", save_creative_node)
+workflow.add_node("gen_mor", generate_moral_node)
+workflow.add_node("val_mor", validate_moral_node)
+workflow.add_node("save_mor", save_moral_node)
 
-# Activity 4: Matching
-workflow.add_node("gen_mat", generate_matching_node)
-workflow.add_node("val_mat", validate_matching_node)
-workflow.add_node("save_mat", save_matching_node)
+# Activity 4: Science
+workflow.add_node("gen_sci", generate_science_node)
+workflow.add_node("val_sci", validate_science_node)
+workflow.add_node("save_sci", save_science_node)
 
 # Entry & Fan-out (Dynamic)
 workflow.set_entry_point("start")
@@ -177,11 +177,11 @@ workflow.add_conditional_edges(
     "start", 
     route_start,
     # Define possible destinations
-    ["gen_mcq", "gen_art", "gen_crt", "gen_mat"] 
+    ["gen_mcq", "gen_art", "gen_mor", "gen_sci"] 
 )
 
 # Define Flows (Standardized: Gen -> Val -> Retry/Save)
-for key, prefix in [("mcq", "mcq"), ("art", "art"), ("creative", "crt"), ("matching", "mat")]:
+for key, prefix in [("mcq", "mcq"), ("art", "art"), ("moral", "mor"), ("science", "sci")]:
     gen, val, save = f"gen_{prefix}", f"val_{prefix}", f"save_{prefix}"
     
     workflow.add_edge(gen, val)

@@ -40,33 +40,48 @@ class ValidatorAgent:
                "completed": ["art"]
             }
 
-    def validate_creative(self, state: dict):
+    def validate_moral(self, state: dict):
         activities = state.get("activities", {})
-        data = activities.get("creative")
+        data = activities.get("moral")
         
-        required = ["title", "instructions"]
-        if not data or not all(k in data for k in required):
-            logger.warning("Creative validation failed.")
-            return self._increment_retry(state, "creative")
+        required = ["What it Teaches", "Instructions", "Story Connection"]
+        
+        # Check if data is a non-empty list and its first element has all required fields
+        is_valid = (
+            isinstance(data, list) and 
+            len(data) > 0 and 
+            all(k in data[0] for k in required)
+        )
+
+        if not is_valid:
+            logger.warning("Moral validation failed.")
+            return self._increment_retry(state, "moral")
             
-        logger.info("Creative validation passed.")
+        logger.info("Moral validation passed.")
         return {
-                "activities": {**state.get("activities", {}), "creative": data},
-                # "images": {**state.get("images", {}), "art": response["images"]},
-               "completed": ["creative"]
+                "activities": {**state.get("activities", {}), "moral": data},
+                "completed": ["moral"]
             }
 
-    def validate_matching(self, state: dict):
+    def validate_science(self, state: dict):
         activities = state.get("activities", {})
-        data = activities.get("matching")
+        data = activities.get("science")
         
-        if not data or "pairs" not in data or len(data["pairs"]) < 2:
-            logger.warning("Matching validation failed.")
-            return self._increment_retry(state, "matching")
+        required = ["What it Teaches", "Instructions", "Story Connection"]
+        
+        # Check if data is a non-empty list and its first element has all required fields
+        is_valid = (
+            isinstance(data, list) and 
+            len(data) > 0 and 
+            all(k in data[0] for k in required)
+        )
+
+        if not is_valid:
+            logger.warning("Science validation failed.")
+            return self._increment_retry(state, "science")
             
-        logger.info("Matching validation passed.")
+        logger.info("Science validation passed.")
         return {
-                "activities": {**state.get("activities", {}), "matching": data},
-                # "images": {**state.get("images", {}), "art": response["images"]},
-               "completed": ["matching"]
+                "activities": {**state.get("activities", {}), "science": data},
+                "completed": ["science"]
             }

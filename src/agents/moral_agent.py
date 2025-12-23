@@ -4,24 +4,32 @@ from ..utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 
-class CreativeAgent:
+class MoralAgent:
     def __init__(self):
         self.ai_service = AIService()
 
     async def generate(self, state: dict):
         logger.info("Starting Creative activity generation...")
-        summary = state.get("story_text", "")
+        story = state.get("story_text", "")
         age = state.get("age", 5)
         
         prompt = f"""
-        Create a creative activity (e.g., role-play, what-if scenario) for a {age}-year-old based on: "{summary}"
-        
+        Create a moral based activity on the story below for the kids aged {age} years old.
+        Rules :
+            - On top share what the activity teaches and how it is related to the story.
+            - Then add the short instructions and needed items in a structure.
+            - Always generate activity to make the kids understand the ethical moral of the story
+            - Generate at least 2 activities
+            - Activity should be in a way that moral has to be understand but shouldn't necessarily use the same story theme.
+            - Use the creativity to use different materials and different themes to make them understand the moral.
+            - Activity doesn't have to relate with the entire story instead, it should just relate with moral.
+
+
+        "story : {story}"
         Output strictly in JSON format:
-        {{
-            "title": "Activity Title",
-            "instructions": "How to play",
-            "questions_to_ask": ["Question 1", "Question 2"]
-        }}
+        [
+        {{"What it Teaches": "...", "Instructions": "1. Gather : ..., 2. Introduction of the activity : ..., 3.Observations from the activity : ..., 4. Discuss about the activity :....", "Story Connection": "A"}}
+        ]
         """
         
         try:
@@ -41,10 +49,10 @@ class CreativeAgent:
                 # pass 
 
             return {
-                "activities": {**state.get("activities", {}), "creative": activity_data},
+                "activities": {**state.get("activities", {}), "moral": activity_data},
                 # "images": {**state.get("images", {}), "creative": response["images"]},
-                "completed": state.get("completed", []) + ["creative"]
+                "completed": state.get("completed", []) + ["moral"]
             }
         except Exception as e:
             logger.error(f"Creative Agent failed: {e}")
-            return {"errors": {**state.get("errors", {}), "creative": str(e)}}
+            return {"errors": {**state.get("errors", {}), "moral": str(e)}}
