@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     
     # Google Cloud
     GOOGLE_CLOUD_PROJECT : str = "riokutty"
+    GOOGLE_CLOUD_BUCKET : str = "kutty_bucket"
     GOOGLE_API_KEY: str
     FIRESTORE_DATABASE: str = "(default)"
     GOOGLE_APPLICATION_CREDENTIALS: str | None = None # Path to service account JSON
@@ -25,6 +26,7 @@ class Settings(BaseSettings):
 
      # Performance & Scaling
     MAX_CONCURRENCY: int = 10
+    HF_TOKEN: str
     class Config:
         env_file = ".env"
 

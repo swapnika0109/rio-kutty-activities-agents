@@ -16,23 +16,35 @@ class ArtAgent:
         prompt = f"""
         Create a simple art/drawing activity for a {age}-year-old based on: "{summary}"
         
-        Output strictly in JSON format:
-        {{
-            "title": "Activity Title",
-            "description": "Step-by-step instructions",
-            "materials_needed": ["paper", "crayons"]
-        }}
+        Output strictly in valid JSON format with no markdown code blocks.
+        Ensure that all strings are properly escaped.
+        [
+            {{
+                "title": "Activity Title",
+                "description": "Step-by-step instructions",
+                "materials_needed": ["paper", "crayons"],
+                "Instructions": "..." 
+            }}
+        ]
         """
         
         try:
             response = await self.ai_service.generate_content(prompt)
             
-            cleaned_text = response.replace("```json", "").replace("```", "").strip()
+            # Robust JSON extraction
+            start_index = response.find('[')
+            end_index = response.rfind(']')
+            if start_index != -1 and end_index != -1:
+                cleaned_text = response[start_index:end_index+1]
+            else:
+                cleaned_text = response.replace("```json", "").replace("```", "").strip()
+
             activity_data = json.loads(cleaned_text)
+            image = await self.ai_service.generate_image("Strictly no description or instructions on the image   Activity : " + activity_data[0].get("Instructions", ""))
             
             return {
                 "activities": {**state.get("activities", {}), "art": activity_data},
-                # "images": {**state.get("images", {}), "art": response["images"]},
+                "images": {**state.get("images", {}), "art": image},
                 "completed": state.get("completed", []) + ["art"]
             }
         except Exception as e:

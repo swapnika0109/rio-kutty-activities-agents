@@ -1,5 +1,6 @@
 from typing import TypedDict, List, Dict, Any, Annotated
 import operator
+import uuid
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.runnables import RunnableConfig
@@ -11,6 +12,7 @@ from ..agents.moral_agent import MoralAgent
 from ..agents.science_agent import ScienceAgent
 from ..agents.validators.validator_agent import ValidatorAgent
 from ..services.database.firestore_service import FirestoreService
+from ..services.database.storage_bucket import StorageBucketService
 from ..utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -36,6 +38,8 @@ moral_agent = MoralAgent()
 science_agent = ScienceAgent()
 validator = ValidatorAgent()
 firestore_service = FirestoreService()
+storage_bucket_service = StorageBucketService()
+
 
 def unpack_config(state: ActivityState, config: RunnableConfig):
     # Access read only data from config
@@ -51,16 +55,28 @@ def unpack_config(state: ActivityState, config: RunnableConfig):
 
 # --- Generation Nodes ---
 async def generate_mcq_node(state: ActivityState, config: RunnableConfig):
-    return await mcq_agent.generate(unpack_config(state, config))
+    result = await mcq_agent.generate(unpack_config(state, config))
+    current_retry = state.get("retry_count", {}).get("mcq", 0)
+    result["retry_count"] = {**state.get("retry_count", {}), "mcq": current_retry + 1}
+    return result
 
 async def generate_art_node(state: ActivityState, config: RunnableConfig): 
-    return await art_agent.generate(unpack_config(state, config))
+    result = await art_agent.generate(unpack_config(state, config))
+    current_retry = state.get("retry_count", {}).get("art", 0)
+    result["retry_count"] = {**state.get("retry_count", {}), "art": current_retry + 1}
+    return result
 
 async def generate_moral_node(state: ActivityState, config: RunnableConfig): 
-    return await moral_agent.generate(unpack_config(state, config))
+    result = await moral_agent.generate(unpack_config(state, config))
+    current_retry = state.get("retry_count", {}).get("moral", 0)
+    result["retry_count"] = {**state.get("retry_count", {}), "moral": current_retry + 1}
+    return result
 
 async def generate_science_node(state: ActivityState, config: RunnableConfig): 
-    return await science_agent.generate(unpack_config(state, config))
+    result = await science_agent.generate(unpack_config(state, config))
+    current_retry = state.get("retry_count", {}).get("science", 0)
+    result["retry_count"] = {**state.get("retry_count", {}), "science": current_retry + 1}
+    return result
 
 # --- Validation Nodes ---
 def validate_mcq_node(state: ActivityState, config: RunnableConfig): 
@@ -88,22 +104,101 @@ async def save_art_node(state: ActivityState, config: RunnableConfig):
     db_data = unpack_config(state, config)
     if "art" in state.get("activities", {}):
         data = state["activities"]["art"]
-        await firestore_service.save_activity(db_data["story_id"], "art", data)
+        filename = await save_art_image_node(state, config)
+        
+        # Prepare payload for Firestore
+        if isinstance(data, dict):
+            payload = {**data, "image": filename}
+        else:
+            payload = {"items": data, "image": filename}
+            
+        await firestore_service.save_activity(db_data["story_id"], "art", payload)
     return {}
+
+async def save_art_image_node(state: ActivityState, config: RunnableConfig):
+    db_data = unpack_config(state, config)
+    if "art" in state.get("images", {}):
+        data = state["images"]["art"]
+        if isinstance(data, list):
+            filenames = []
+            for img_bytes in data:
+                file_uuid = str(uuid.uuid4())
+                filename = f"images/{file_uuid}.png"
+                await storage_bucket_service.upload_file(filename, img_bytes)
+                filenames.append(filename)
+            return filenames
+        else:
+            file_uuid = str(uuid.uuid4())
+            filename = f"images/{file_uuid}.png"
+            await storage_bucket_service.upload_file(filename, data)
+            return filename
+    return None
 
 async def save_science_node(state: ActivityState, config: RunnableConfig):
     db_data = unpack_config(state, config)
     if "science" in state.get("activities", {}):
         data = state["activities"]["science"]
-        await firestore_service.save_activity(db_data["story_id"], "science", data)
+        filename = await save_science_image_node(state, config)
+        
+        # Prepare payload for Firestore
+        if isinstance(data, dict):
+            payload = {**data, "image": filename}
+        else:
+            payload = {"items": data, "image": filename}
+            
+        await firestore_service.save_activity(db_data["story_id"], "science", payload)
     return {}
+async def save_science_image_node(state: ActivityState, config: RunnableConfig):
+    db_data = unpack_config(state, config)
+    if "science" in state.get("images", {}):
+        data = state["images"]["science"]
+        if isinstance(data, list):
+            filenames = []
+            for img_bytes in data:
+                file_uuid = str(uuid.uuid4())
+                filename = f"images/{file_uuid}.png"
+                await storage_bucket_service.upload_file(filename, img_bytes)
+                filenames.append(filename)
+            return filenames
+        else:
+            file_uuid = str(uuid.uuid4())
+            filename = f"images/{file_uuid}.png"
+            await storage_bucket_service.upload_file(filename, data)
+            return filename
+    return None
 
 async def save_moral_node(state: ActivityState, config: RunnableConfig):
     db_data = unpack_config(state, config)
     if "moral" in state.get("activities", {}):
         data = state["activities"]["moral"]
-        await firestore_service.save_activity(db_data["story_id"], "moral", data)
+        filename = await save_moral_image_node(state, config)
+        
+        # Prepare payload for Firestore
+        if isinstance(data, dict):
+            payload = {**data, "image": filename}
+        else:
+            payload = {"items": data, "image": filename}
+            
+        await firestore_service.save_activity(db_data["story_id"], "moral", payload)
     return {}
+async def save_moral_image_node(state: ActivityState, config: RunnableConfig):
+    db_data = unpack_config(state, config)
+    if "moral" in state.get("images", {}):
+        data = state["images"]["moral"]
+        if isinstance(data, list):
+            filenames = []
+            for img_bytes in data:
+                file_uuid = str(uuid.uuid4())
+                filename = f"images/{file_uuid}.png"
+                await storage_bucket_service.upload_file(filename, img_bytes)
+                filenames.append(filename)
+            return filenames
+        else:
+            file_uuid = str(uuid.uuid4())
+            filename = f"images/{file_uuid}.png"
+            await storage_bucket_service.upload_file(filename, data)
+            return filename
+    return None
 
 # --- Routing Logic ---
 def create_retry_logic(activity_type: str):
@@ -111,10 +206,15 @@ def create_retry_logic(activity_type: str):
         if activity_type in state.get("errors", {}): return "fail"
         
         has_activity = activity_type in state.get("activities", {})
+        has_image = activity_type in state.get("images", {})
         retries = state.get("retry_count", {}).get(activity_type, 0)
         
-        if has_activity and retries == 0: 
+        needs_image = activity_type in ["art", "moral", "science"]
+        
+        # If we have the activity AND (we don't need an image OR we have the image)
+        if has_activity and (not needs_image or has_image): 
             return "next"
+            
         if retries < 3:
             return "retry"
         return "fail"

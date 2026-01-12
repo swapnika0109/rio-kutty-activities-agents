@@ -7,6 +7,19 @@ import os
 import mimetypes
 import uuid
 from functools import lru_cache
+import io
+from huggingface_hub import InferenceClient
+
+client = InferenceClient(
+    provider="together",
+    api_key=os.environ["HF_TOKEN"],
+)
+
+# output is a PIL.Image object
+image = client.text_to_image(
+    "Astronaut riding a horse",
+    model="black-forest-labs/FLUX.1-dev",
+)
 
 settings = get_settings()
 logger = setup_logger(__name__)
@@ -35,7 +48,7 @@ class AIService:
 
         generate_content_config = types.GenerateContentConfig(
             temperature=0.7,
-            max_output_tokens=1000, 
+            max_output_tokens=4000, 
             safety_settings=[
                 types.SafetySetting(
                     category="HARM_CATEGORY_HARASSMENT",
@@ -149,4 +162,28 @@ class AIService:
 
         except Exception as e:
             logger.error(f"Multimodal Generation failed: {str(e)}")
+            raise e
+
+    async def generate_image(self, prompt: str):
+        """
+        Generates an image from a prompt using the Together API.
+        """
+        try:
+            logger.info(f"Generating image for: {prompt[:30]}...")
+            client = InferenceClient(
+                provider="together",
+                api_key=settings.HF_TOKEN,
+            )
+
+            # output is a PIL.Image object
+            image = client.text_to_image(
+                prompt,
+                model="black-forest-labs/FLUX.1-dev",
+            )
+            img_byte_arr = io.BytesIO()
+            image.save(img_byte_arr, format='PNG')   
+            img_byte_arr = img_byte_arr.getvalue()
+            return img_byte_arr 
+        except Exception as e:
+            logger.error(f"Image Generation failed: {str(e)}")
             raise e
