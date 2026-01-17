@@ -117,8 +117,8 @@ async def save_art_node(state: ActivityState, config: RunnableConfig):
 
 async def save_art_image_node(state: ActivityState, config: RunnableConfig):
     db_data = unpack_config(state, config)
-    if "art" in state.get("images", {}):
-        data = state["images"]["art"]
+    if "art" in state.get("activities", {}):
+        data = state["activities"]["art"][0].get("image", None)
         if isinstance(data, list):
             filenames = []
             for img_bytes in data:
@@ -137,67 +137,50 @@ async def save_art_image_node(state: ActivityState, config: RunnableConfig):
 async def save_science_node(state: ActivityState, config: RunnableConfig):
     db_data = unpack_config(state, config)
     if "science" in state.get("activities", {}):
-        data = state["activities"]["science"]
-        filename = await save_science_image_node(state, config)
+        data = state["activities"]["science"][0]
+        filename = await save_science_image_node(data, config)
+        data["image"] = filename
         
         # Prepare payload for Firestore
         if isinstance(data, dict):
-            payload = {**data, "image": filename}
+            payload = {**data}
         else:
-            payload = {"items": data, "image": filename}
+            payload = {"items": data}
             
         await firestore_service.save_activity(db_data["story_id"], "science", payload)
     return {}
-async def save_science_image_node(state: ActivityState, config: RunnableConfig):
-    db_data = unpack_config(state, config)
-    if "science" in state.get("images", {}):
-        data = state["images"]["science"]
-        if isinstance(data, list):
-            filenames = []
-            for img_bytes in data:
-                file_uuid = str(uuid.uuid4())
-                filename = f"images/{file_uuid}.png"
-                await storage_bucket_service.upload_file(filename, img_bytes)
-                filenames.append(filename)
-            return filenames
-        else:
-            file_uuid = str(uuid.uuid4())
-            filename = f"images/{file_uuid}.png"
-            await storage_bucket_service.upload_file(filename, data)
-            return filename
+async def save_science_image_node(data: dict, config: RunnableConfig):
+    if data.get("image", None):
+        file_uuid = str(uuid.uuid4())
+        filename = f"images/{file_uuid}.png"
+        await storage_bucket_service.upload_file(filename, data.get("image", None))
+        return filename
     return None
 
 async def save_moral_node(state: ActivityState, config: RunnableConfig):
     db_data = unpack_config(state, config)
     if "moral" in state.get("activities", {}):
-        data = state["activities"]["moral"]
-        filename = await save_moral_image_node(state, config)
-        
-        # Prepare payload for Firestore
-        if isinstance(data, dict):
-            payload = {**data, "image": filename}
-        else:
-            payload = {"items": data, "image": filename}
+        data_list = state["activities"]["moral"]
+        payloads = []
+        for data in data_list:
+            filename = await save_moral_image_node(data, config)
+            data["image"] = filename
+            # Prepare payload for Firestore
+            if isinstance(data, dict):
+                payload = {**data}
+            else:
+                payload = {"items": data}
+            payloads.append(payload)
             
-        await firestore_service.save_activity(db_data["story_id"], "moral", payload)
+            
+        await firestore_service.save_activity(db_data["story_id"], "moral", payloads)
     return {}
-async def save_moral_image_node(state: ActivityState, config: RunnableConfig):
-    db_data = unpack_config(state, config)
-    if "moral" in state.get("images", {}):
-        data = state["images"]["moral"]
-        if isinstance(data, list):
-            filenames = []
-            for img_bytes in data:
-                file_uuid = str(uuid.uuid4())
-                filename = f"images/{file_uuid}.png"
-                await storage_bucket_service.upload_file(filename, img_bytes)
-                filenames.append(filename)
-            return filenames
-        else:
-            file_uuid = str(uuid.uuid4())
-            filename = f"images/{file_uuid}.png"
-            await storage_bucket_service.upload_file(filename, data)
-            return filename
+async def save_moral_image_node(data: dict, config: RunnableConfig):
+    if data.get("image", None):
+        file_uuid = str(uuid.uuid4())
+        filename = f"images/{file_uuid}.png"
+        await storage_bucket_service.upload_file(filename, data.get("image", None))
+        return filename
     return None
 
 # --- Routing Logic ---
@@ -206,13 +189,10 @@ def create_retry_logic(activity_type: str):
         if activity_type in state.get("errors", {}): return "fail"
         
         has_activity = activity_type in state.get("activities", {})
-        has_image = activity_type in state.get("images", {})
         retries = state.get("retry_count", {}).get(activity_type, 0)
         
-        needs_image = activity_type in ["art", "moral", "science"]
-        
-        # If we have the activity AND (we don't need an image OR we have the image)
-        if has_activity and (not needs_image or has_image): 
+        # If we have the activity
+        if has_activity: 
             return "next"
             
         if retries < 3:

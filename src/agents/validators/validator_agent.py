@@ -44,7 +44,7 @@ class ValidatorAgent:
         activities = state.get("activities", {})
         data = activities.get("moral")
         
-        required = ["What it Teaches", "Instructions", "Story Connection"]
+        required = ["What it Teaches", "Instructions", "Story Connection", "image"]
         
         # Check if data is a non-empty list and its first element has all required fields
         is_valid = (
@@ -67,7 +67,7 @@ class ValidatorAgent:
         activities = state.get("activities", {})
         data = activities.get("science")
         
-        required = ["What it Teaches", "Instructions", "Story Connection"]
+        required = ["What it Teaches", "Instructions", "Story Connection", "image"]
         
         # Check if data is a non-empty list and its first element has all required fields
         is_valid = (

@@ -9,7 +9,7 @@ class MoralAgent:
         self.ai_service = AIService()
 
     async def generate(self, state: dict):
-        logger.info("Starting Creative activity generation...")
+        logger.info("Starting Moral activity generation...")
         story = state.get("story_text", "")
         age = state.get("age", 5)
         
@@ -49,17 +49,17 @@ class MoralAgent:
                 cleaned_text = response.replace("```json", "").replace("```", "").strip()
 
             activity_data = json.loads(cleaned_text)
-            images = []
             if len(activity_data) >= 2:
                 activity1 = activity_data[0].get("Instructions", "")
                 activity2 = activity_data[1].get("Instructions", "")
                 # Assuming there are at least two activities if "}," is found
                 image1 = await self.ai_service.generate_image("Strictly no description or instructions on the image   Activity : "+activity1)
+                activity_data[0]["image"] = image1
                 image2 = await self.ai_service.generate_image("Strictly no description or instructions on the image   Activity : "+activity2)
-                images.extend([image1, image2])
+                activity_data[1]["image"] = image2
             else:
                 image = await self.ai_service.generate_image("Strictly no description or instructions on the image   Activity : "+activity_data[0].get("Instructions", ""))
-                images.append(image)
+                activity_data[0]["image"] = image
 
             
             # If images were generated, attach them
@@ -73,9 +73,8 @@ class MoralAgent:
 
             return {
                 "activities": {**state.get("activities", {}), "moral": activity_data},
-                "images": {**state.get("images", {}), "moral": images},
                 "completed": state.get("completed", []) + ["moral"]
             }
         except Exception as e:
-            logger.error(f"Creative Agent failed: {e}")
+            logger.error(f"Moral Agent failed: {e}")
             return {"errors": {**state.get("errors", {}), "moral": str(e)}}

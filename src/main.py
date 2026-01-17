@@ -95,8 +95,8 @@ async def pubsub_handler(pubsub_msg: PubSubMessage, background_tasks: Background
     
     try:
         decoded_data = base64.b64decode(data).decode("utf-8")
-        data_json = json.loads(decoded_data)
         logger.info(f"Received Message: {decoded_data}")
+        data_json = json.loads(decoded_data)
         
         # Parse activity request
         activity_request = ActivityRequest(
@@ -107,6 +107,9 @@ async def pubsub_handler(pubsub_msg: PubSubMessage, background_tasks: Background
         
         background_tasks.add_task(run_workflow, activity_request)
         return Response(status_code=status.HTTP_202_ACCEPTED)
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON decode error: {e}. Data: {decoded_data}")
+        return Response(status_code=status.HTTP_400_BAD_REQUEST)
     except Exception as e:
         logger.error(f"Error processing pubsub message: {e}")
         return Response(status_code=status.HTTP_400_BAD_REQUEST)

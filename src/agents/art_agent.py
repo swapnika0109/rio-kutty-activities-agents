@@ -40,11 +40,10 @@ class ArtAgent:
                 cleaned_text = response.replace("```json", "").replace("```", "").strip()
 
             activity_data = json.loads(cleaned_text)
-            image = await self.ai_service.generate_image("Strictly no description or instructions on the image   Activity : " + activity_data[0].get("Instructions", ""))
-            
+            # image = await self.ai_service.generate_image("Strictly no description or instructions on the image   Activity : " + activity_data[0].get("Instructions", ""))
+            # activity_data[0]["image"] = image
             return {
                 "activities": {**state.get("activities", {}), "art": activity_data},
-                "images": {**state.get("images", {}), "art": image},
                 "completed": state.get("completed", []) + ["art"]
             }
         except Exception as e:

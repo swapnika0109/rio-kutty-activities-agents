@@ -49,11 +49,10 @@ class ScienceAgent:
 
             science_data = json.loads(cleaned_text)
             image = await self.ai_service.generate_image("Strictly no description or instructions on the image   Activity : " + science_data[0].get("Instructions", ""))
-
+            science_data[0]["image"] = image
             return {
                 "activity_type": "science",
                 "activities": {**state.get("activities", {}), "science": science_data},
-                "images": {**state.get("images", {}), "science": image},
                 "completed": state.get("completed", []) + ["science"]
             }
         except Exception as e:
