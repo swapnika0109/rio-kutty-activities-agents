@@ -103,40 +103,24 @@ async def save_mcq_node(state: ActivityState, config: RunnableConfig):
 async def save_art_node(state: ActivityState, config: RunnableConfig):
     db_data = unpack_config(state, config)
     if "art" in state.get("activities", {}):
-        data = state["activities"]["art"]
-        filename = await save_art_image_node(state, config)
-        
-        # Prepare payload for Firestore
-        if isinstance(data, dict):
-            payload = {**data, "image": filename}
-        else:
-            payload = {"items": data, "image": filename}
-            
+        data = state["activities"]["art"][0]
+        filename = await save_art_image_node(data, config)
+        data["image"] = filename
+        payload = {"items": data}
         await firestore_service.save_activity(db_data["story_id"], "art", payload)
     return {}
 
-async def save_art_image_node(state: ActivityState, config: RunnableConfig):
-    db_data = unpack_config(state, config)
-    if "art" in state.get("activities", {}):
-        data = state["activities"]["art"][0].get("image", None)
-        if isinstance(data, list):
-            filenames = []
-            for img_bytes in data:
-                file_uuid = str(uuid.uuid4())
-                filename = f"images/{file_uuid}.png"
-                await storage_bucket_service.upload_file(filename, img_bytes)
-                filenames.append(filename)
-            return filenames
-        else:
-            file_uuid = str(uuid.uuid4())
-            filename = f"images/{file_uuid}.png"
-            await storage_bucket_service.upload_file(filename, data)
-            return filename
+async def save_art_image_node(data: dict, config: RunnableConfig):
+    if data.get("image", None):
+        file_uuid = str(uuid.uuid4())
+        filename = f"images/{file_uuid}.png"
+        await storage_bucket_service.upload_file(filename, data.get("image", None))
+        return filename
     return None
 
 async def save_science_node(state: ActivityState, config: RunnableConfig):
     db_data = unpack_config(state, config)
-    if "science" in state.get("activities", {}):
+    if "science" in state.get("activities", {}) :
         data = state["activities"]["science"][0]
         filename = await save_science_image_node(data, config)
         data["image"] = filename

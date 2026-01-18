@@ -28,7 +28,7 @@ class ValidatorAgent:
         data = activities.get("art")
         
         # Check for required fields
-        required = ["title", "description"]
+        required = ["title", "description", "materials_needed", "Instructions", "image"]
         if not data or not all(k in data for k in required):
             logger.warning("Art validation failed.")
             return self._increment_retry(state, "art")
@@ -36,7 +36,6 @@ class ValidatorAgent:
         logger.info("Art validation passed.")
         return {
                 "activities": {**state.get("activities", {}), "art": data},
-                # "images": {**state.get("images", {}), "art": response["images"]},
                "completed": ["art"]
             }
 
