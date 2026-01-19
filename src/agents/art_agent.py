@@ -14,34 +14,41 @@ class ArtAgent:
         age = state.get("age", 5)
         
         prompt = f"""
-        Create a simple art/drawing activity for a {age}-year-old based on: "{summary}"
-        
-        Output strictly in valid JSON format with no markdown code blocks.
-        Ensure that all strings are properly escaped.
-        [
-            {{
-                "title": "Activity Title",
-                "description": "Step-by-step instructions",
-                "materials_needed": ["paper", "crayons"],
-                "Instructions": "..." 
-            }}
-        ]
+        Context: You are an expert Early Childhood Educator and Art Instructor.
+        Task: Create a home-based art activity for a {age}-year-old based on the story: "{summary}".
+
+        Thinking Process (Follow these steps before outputting JSON):
+        1. Skill Check: At {age} years old, what are the child's physical limitations? (e.g., can they use scissors? Yes, small kids safety one's). 
+        2. Concept: Select one simple object from the story.
+        3. Steps: Break the activity into 3 ultra-simple steps.
+        4. Visualization: Describe exactly what the finished craft looks like (colors, textures, shapes) for an image generator.
+
+        Output Format: Provide ONLY valid JSON.
+        {{
+            "title": "Creative Activity Name",
+            "age_appropriateness": "Explanation of why this fits a {age}-year-old",
+            "materials": ["item1", "item2"],
+            "steps": ["Step 1", "Step 2", "Step 3"],
+            "image_generation_prompt": "A high-quality, top-down photo of the finished craft: [detailed description based on the activity]"
+        }}
         """
         
         try:
             response = await self.ai_service.generate_content(prompt)
+            try:
+                activity_data = json.loads(response)
+            except json.JSONDecodeError:
+                # Robust JSON extraction
+                start_index = response.find('[')
+                end_index = response.rfind(']')
+                if start_index != -1 and end_index != -1:
+                    cleaned_text = response[start_index:end_index+1]
+                else:
+                    cleaned_text = response.replace("```json", "").replace("```", "").strip()
+                activity_data = json.loads(cleaned_text)
             
-            # Robust JSON extraction
-            start_index = response.find('[')
-            end_index = response.rfind(']')
-            if start_index != -1 and end_index != -1:
-                cleaned_text = response[start_index:end_index+1]
-            else:
-                cleaned_text = response.replace("```json", "").replace("```", "").strip()
-
-            activity_data = json.loads(cleaned_text)
-            image = await self.ai_service.generate_image("Strictly no description or instructions on the image   Activity : " + activity_data[0].get("Instructions", ""))
-            activity_data[0]["image"] = image
+            image = await self.ai_service.generate_image(activity_data.get("image_generation_prompt", ""))
+            activity_data["image"] = image
             return {
                 "activities": {**state.get("activities", {}), "art": activity_data},
                 "completed": state.get("completed", []) + ["art"]

@@ -103,7 +103,7 @@ async def save_mcq_node(state: ActivityState, config: RunnableConfig):
 async def save_art_node(state: ActivityState, config: RunnableConfig):
     db_data = unpack_config(state, config)
     if "art" in state.get("activities", {}):
-        data = state["activities"]["art"][0]
+        data = state["activities"]["art"]
         filename = await save_art_image_node(data, config)
         data["image"] = filename
         payload = {"items": data}
@@ -172,11 +172,11 @@ def create_retry_logic(activity_type: str):
     def should_retry(state: ActivityState):
         if activity_type in state.get("errors", {}): return "fail"
         
-        has_activity = activity_type in state.get("activities", {})
+        is_completed = activity_type in state.get("completed", [])
         retries = state.get("retry_count", {}).get(activity_type, 0)
         
         # If we have the activity
-        if has_activity: 
+        if is_completed: 
             return "next"
             
         if retries < 3:
@@ -191,10 +191,10 @@ async def route_start(state: ActivityState, config: RunnableConfig):
     
     # Map activity types to their node name prefixes
     type_to_prefix = {
-        "mcq": "mcq",
-        "art": "art",
+        # "mcq": "mcq",
+        # "art": "art",
         "moral": "mor",
-        "science": "sci"
+        # "science": "sci"
     }
     
     for activity_type, prefix in type_to_prefix.items():
@@ -225,7 +225,7 @@ workflow.add_node("gen_art", generate_art_node)
 workflow.add_node("val_art", validate_art_node)
 workflow.add_node("save_art", save_art_node)
 
-# Activity 3: Creative
+# Activity 3: Moral
 workflow.add_node("gen_mor", generate_moral_node)
 workflow.add_node("val_mor", validate_moral_node)
 workflow.add_node("save_mor", save_moral_node)

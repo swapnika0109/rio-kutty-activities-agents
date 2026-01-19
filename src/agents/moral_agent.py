@@ -14,26 +14,22 @@ class MoralAgent:
         age = state.get("age", 5)
         
         prompt = f"""
-        Generate a moral based activity on the story below for the kids aged {age} years old.
-        Rules :
-            - Activity should be in a way that they have different things to do like cutting, pasting, playing etc
-            - On top share what the activity teaches and how it is related to the story.
-            - Then add the eloberate step by step instructions and needed items in a structure.
-            - Instructions should be in a way that kids can understand and follow easily.
-            - All the instructions should be very detailed to finish the activity.
-            - Always generate activity to make the kids understand the ethical moral of the story
-            - Generate at least 2 activities
-            - Activity should be in a way that moral has to be understand but shouldn't necessarily use the same story theme.
-            - Use the creativity to use different materials and different themes to make them understand the moral.
-            - Activity doesn't have to relate with the entire story instead, it should just relate with moral.
-
-
-        "story : {story}"
-        Output strictly in valid JSON format with no markdown code blocks. 
-        Ensure that all strings are properly escaped, especially double quotes inside the text.
-        [
-            {{"What it Teaches": "...", "Instructions": "...", "Story Connection": "..."}}
-        ]
+        Context : You are a kids activity generator based on the provided story summary.	Objective : Generate an atleast 2 unique activities from the morals of the story for {age}-years-old.
+            Thinking Process:
+            1. Predefined Check : Treat yourself as a guardian of the kid and check whether the activity is easy to explain them
+            2. Skill Check :  At {age} years old, what are the child's physical limitations? (e.g., can they use scissors? Yes, small kids safety one's). 
+            3. Concept : Extract a couple of morals from the story and generate the activity out of the moral. It  doesn't have to relate with the story theme or line.
+            4. Steps : Break the activity into 5 or 6 ultra-simple steps.
+            5. Visualization: Describe exactly what the finished activity final output looks like (colors, textures, shapes) for an image generator.
+            Output Format: Provide ONLY valid JSON.
+                [{{
+                    "title": "Creative Activity Name",
+                    "age_appropriateness": "Explanation of why this fits a {age}-year-old",
+                    "What it Teaches" : "Explain what the activity teaches"
+                    "materials": ["item1", "item2"],
+                    "Instructions": ["Step 1", "Step 2", "Step 3", "Step 4", "Step 5", "Step 6"],
+                    "image_generation_prompt": "A high-quality, top-down photo of the finished craft: [detailed description based on the activity]"
+                }}]
         """
         
         try:
@@ -50,15 +46,12 @@ class MoralAgent:
 
             activity_data = json.loads(cleaned_text)
             if len(activity_data) >= 2:
-                activity1 = activity_data[0].get("Instructions", "")
-                activity2 = activity_data[1].get("Instructions", "")
-                # Assuming there are at least two activities if "}," is found
-                image1 = await self.ai_service.generate_image("Strictly no description or instructions on the image   Activity : "+activity1)
+                image1 = await self.ai_service.generate_image(activity_data[0].get("image_generation_prompt", ""))
                 activity_data[0]["image"] = image1
-                image2 = await self.ai_service.generate_image("Strictly no description or instructions on the image   Activity : "+activity2)
+                image2 = await self.ai_service.generate_image(activity_data[1].get("image_generation_prompt", ""))
                 activity_data[1]["image"] = image2
             else:
-                image = await self.ai_service.generate_image("Strictly no description or instructions on the image   Activity : "+activity_data[0].get("Instructions", ""))
+                image = await self.ai_service.generate_image(activity_data[0].get("image_generation_prompt", ""))
                 activity_data[0]["image"] = image
 
             

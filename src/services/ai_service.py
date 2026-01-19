@@ -10,16 +10,9 @@ from functools import lru_cache
 import io
 from huggingface_hub import InferenceClient
 
-client = InferenceClient(
-    provider="together",
-    api_key=os.environ["HF_TOKEN"],
-)
 
-# output is a PIL.Image object
-image = client.text_to_image(
-    "Astronaut riding a horse",
-    model="black-forest-labs/FLUX.1-dev",
-)
+# settings = get_settings()
+# logger = setup_logger(__name__)
 
 settings = get_settings()
 logger = setup_logger(__name__)

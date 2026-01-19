@@ -28,7 +28,7 @@ class ValidatorAgent:
         data = activities.get("art")
         
         # Check for required fields
-        required = ["title", "description", "materials_needed", "Instructions", "image"]
+        required = ["title", "age_appropriateness", "materials", "steps", "image_generation_prompt", "image"]
         if not data or not all(k in data for k in required):
             logger.warning("Art validation failed.")
             return self._increment_retry(state, "art")
@@ -43,7 +43,7 @@ class ValidatorAgent:
         activities = state.get("activities", {})
         data = activities.get("moral")
         
-        required = ["What it Teaches", "Instructions", "Story Connection", "image"]
+        required =  ["title", "age_appropriateness", "What it Teaches" , "materials", "Instructions", "image_generation_prompt", "image"]
         
         # Check if data is a non-empty list and its first element has all required fields
         is_valid = (
@@ -66,7 +66,7 @@ class ValidatorAgent:
         activities = state.get("activities", {})
         data = activities.get("science")
         
-        required = ["What it Teaches", "Instructions", "Story Connection", "image"]
+        required = ["title", "age_appropriateness", "What it Teaches" , "materials", "Instructions", "image_generation_prompt", "image"]
         
         # Check if data is a non-empty list and its first element has all required fields
         is_valid = (
