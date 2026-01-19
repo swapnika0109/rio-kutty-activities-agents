@@ -191,10 +191,10 @@ async def route_start(state: ActivityState, config: RunnableConfig):
     
     # Map activity types to their node name prefixes
     type_to_prefix = {
-        # "mcq": "mcq",
-        # "art": "art",
+        "mcq": "mcq",
+        "art": "art",
         "moral": "mor",
-        # "science": "sci"
+        "science": "sci"
     }
     
     for activity_type, prefix in type_to_prefix.items():

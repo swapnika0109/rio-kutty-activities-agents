@@ -18,7 +18,7 @@ class MoralAgent:
             Thinking Process:
             1. Predefined Check : Treat yourself as a guardian of the kid and check whether the activity is easy to explain them
             2. Skill Check :  At {age} years old, what are the child's physical limitations? (e.g., can they use scissors? Yes, small kids safety one's). 
-            3. Concept : Extract a couple of morals from the story and generate the activity out of the moral. It  doesn't have to relate with the story theme or line.
+            3. Concept : Extract a couple of morals from the story, Identify the main character's dilemma and create a role-play or 'choice-based' craft that explores the impact of that decision and generate the activity out of it. It  doesn't have to relate with the story theme or line.
             4. Steps : Break the activity into 5 or 6 ultra-simple steps.
             5. Visualization: Describe exactly what the finished activity final output looks like (colors, textures, shapes) for an image generator.
             Output Format: Provide ONLY valid JSON.
