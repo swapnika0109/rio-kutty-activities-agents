@@ -18,7 +18,7 @@ class ScienceAgent:
         logger.info("Starting Science based activities generation...")
         story = state.get("story_text", "")
         age = state.get("age", 5)
-        language = state.get("language", "English")
+        language = state.get("language", "English" )
 
         prompt = f"""
         Context : You are a kids activity generator based on the provided story summary.	Objective : Generate an atleast 2 unique activities from the morals of the story for {age}-years-old.
@@ -27,15 +27,17 @@ class ScienceAgent:
             2. Skill Check :  At {age} years old, what are the child's physical limitations? (e.g., can they use scissors? Yes, small kids safety one's). 
             3. Concept : Extract a science concept, Identify one physical law or natural phenomenon in the story (like Physical/Tactile, Observation-based) from the story and generate the activity out of the science. It  doesn't have to relate with the story theme or line.
             4. Steps : Break the activity into 5 or 6 ultra-simple steps.
-            5. Visualization: Describe exactly what the finished activity final output looks like (colors, textures, shapes) for an image generator.
+            5. Language: Use Easy and simple daily routine {language} language for activity generation.
+            6. Final Check: Before generating activity, evaluate the activity in terms of do-able and understandability for the {age}-years-old. 
+            7. Visualization: Describe exactly what the finished activity final output looks like (colors, textures, shapes) for an image generator.
             Output Format: Provide ONLY valid JSON.
                 [{{
                     "title": "Creative Activity Name",
                     "age_appropriateness": "Explanation of why this fits a {age}-year-old",
                     "What it Teaches" : "Explain what the activity teaches"
                     "materials": ["item1", "item2"],
-                    "Instructions": ["Step 1", "Step 2", "Step 3", "Step 4", "Step 5", "Step 6"],
-                    "image_generation_prompt": "A high-quality, top-down photo of the finished craft: [detailed description based on the activity]"
+                    "Instructions": ["Step 1", "Step 2", "Step 3", "Step 4", "Step 5", "Step 6"], in {language} language
+                    "image_generation_prompt": "A high-quality, top-down photo of the finished craft: [detailed description based on the activity in English language]"
                 }}]
         """
 

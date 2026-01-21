@@ -17,9 +17,10 @@ class MCQAgent:
         logger.info("Starting MCQ generation...")
         summary = state.get("story_text", "")
         age = state.get("age", 5)
+        language = state.get("language", "English")
         prompt = f"""
          Create 3 multiple-choice questions for a {age}-year-old based on this story:
-        "{summary}"
+        "{summary}" in easy {language} language.
         
         Output strictly in JSON format:
         [

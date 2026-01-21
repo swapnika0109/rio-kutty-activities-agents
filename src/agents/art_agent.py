@@ -12,6 +12,7 @@ class ArtAgent:
         logger.info("Starting Art activity generation...")
         summary = state.get("story_text", "")
         age = state.get("age", 5)
+        language = state.get("language", "English")
         
         prompt = f"""
         Context: You are an expert Early Childhood Educator and Art Instructor.
@@ -20,16 +21,19 @@ class ArtAgent:
         Thinking Process (Follow these steps before outputting JSON):
         1. Skill Check: At {age} years old, what are the child's physical limitations? (e.g., can they use scissors? Yes, small kids safety one's). 
         2. Concept: Select one simple object from the story.
-        3. Steps: Break the activity into 3 ultra-simple steps.
-        4. Visualization: Describe exactly what the finished craft looks like (colors, textures, shapes) for an image generator.
+        3. Constraint: Do not suggest 'Drawing' or 'Coloring' unless it is combined with a physical 3D material (like leaves, cotton, or pasta)."
+        4. Steps: Break the activity into 3 ultra-simple steps.
+        5. Language: Use Easy and simple daily routine {language} language for activity generation.
+        6. Final Check: Before generating activity, evaluate the activity in terms of do-able and understandability for the {age}-years-old. 
+        7. Visualization: Describe exactly what the finished craft looks like (colors, textures, shapes) for an image generator. 
 
         Output Format: Provide ONLY valid JSON.
         {{
             "title": "Creative Activity Name",
             "age_appropriateness": "Explanation of why this fits a {age}-year-old",
             "materials": ["item1", "item2"],
-            "steps": ["Step 1", "Step 2", "Step 3"],
-            "image_generation_prompt": "A high-quality, top-down photo of the finished craft: [detailed description based on the activity]"
+            "steps": ["Step 1", "Step 2", "Step 3"] in {language} language,
+            "image_generation_prompt": "A high-quality, top-down photo of the finished craft: [detailed description based on the activity in English language]"
         }}
         """
         
