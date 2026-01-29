@@ -15,15 +15,23 @@ class MoralAgent:
         language = state.get("language", "English")
         
         prompt = f"""
-        Context : You are a kids activity generator based on the provided story summary.	Objective : Generate an atleast 2 unique activities from the morals of the story for {age}-years-old.
-            Thinking Process:
+        Context : You are a kids activity generator based on the provided story {story}.
+        Objective : Generate an atleast 2 unique activities from the morals of the story for {age}-years-old.
+        Thinking Process:
             1. Predefined Check : Treat yourself as a guardian of the kid and check whether the activity is easy to explain them
             2. Skill Check :  At {age} years old, what are the child's physical limitations? (e.g., can they use scissors? Yes, small kids safety one's). 
             3. Concept : Extract a couple of morals from the story, Identify the main character's dilemma and create a role-play or 'choice-based' craft that explores the impact of that decision and generate the activity out of it. It  doesn't have to relate with the story theme or line.
             4. Steps : Break the activity into 5 or 6 ultra-simple steps.
             5. Language: Use Easy and simple daily routine {language} language for activity generation.
-            6. Final Check: Before generating activity, evaluate the activity in terms of do-able and understandability for the {age}-years-old. 
-            7. Visualization: Describe exactly what the finished activity final output looks like (colors, textures, shapes) for an image generator.
+            6. Specificity Audit: 
+           - Look at the generated activity. 
+           - If this activity could work for ANY story about 'sharing,' it is TOO GENERIC. 
+           - Make sure the activity is only unique to this story.
+           - Pick couple of elements from the story and attach it to the moral of this story.
+           - Rewrite it so it ONLY works for a story involving [Key Character] and [Key Object from summary].
+           - Ensure the activity simulates the *value* (e.g., the courage to speak) rather than just the *action* (e.g., giving an item).
+            7. Final Check: Before generating activity, evaluate the activity in terms of do-able and understandability for the {age}-years-old. 
+            8. Visualization: Describe exactly what the finished activity final output looks like (colors, textures, shapes) for an image generator.
             Output Format: Provide ONLY valid JSON.
                 [{{
                     "title": "Creative Activity Name",

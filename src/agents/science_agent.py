@@ -21,24 +21,38 @@ class ScienceAgent:
         language = state.get("language", "English" )
 
         prompt = f"""
-        Context : You are a kids activity generator based on the provided story summary.	Objective : Generate an atleast 2 unique activities from the morals of the story for {age}-years-old.
-            Thinking Process:
-            1. Predefined Check : Treat yourself as a guardian of the kid and check whether the activity is easy to explain them
-            2. Skill Check :  At {age} years old, what are the child's physical limitations? (e.g., can they use scissors? Yes, small kids safety one's). 
-            3. Concept : Extract a science concept, Identify one physical law or natural phenomenon in the story (like Physical/Tactile, Observation-based) from the story and generate the activity out of the science. It  doesn't have to relate with the story theme or line.
-            4. Steps : Break the activity into 5 or 6 ultra-simple steps.
-            5. Language: Use Easy and simple daily routine {language} language for activity generation.
-            6. Final Check: Before generating activity, evaluate the activity in terms of do-able and understandability for the {age}-years-old. 
-            7. Visualization: Describe exactly what the finished activity final output looks like (colors, textures, shapes) for an image generator.
-            Output Format: Provide ONLY valid JSON.
-                [{{
-                    "title": "Creative Activity Name",
-                    "age_appropriateness": "Explanation of why this fits a {age}-year-old",
-                    "What it Teaches" : "Explain what the activity teaches"
-                    "materials": ["item1", "item2"],
-                    "Instructions": ["Step 1", "Step 2", "Step 3", "Step 4", "Step 5", "Step 6"], in {language} language
-                    "image_generation_prompt": "A high-quality, top-down photo of the finished craft: [detailed description based on the activity in English language]"
-                }}]
+        context : you are a multi-agent activtity generator based on the story.
+        agent 1 : context driver.
+        agent 2: safety auditor.
+        story : {story}
+        objective :  Generate an unique science experiement or activity on story for {age}-years-old.
+        Thinking Process:
+        1) Predefined check :  As a context driver check the story carefully and treat yourself as guardian of the kid.
+        2) Skill check : safety auditor has to check child’s pysical limitations.(e.g., can they use scissors? Yes, small kids safety one's).
+       3) Concept : context driver is responsible to extract 
+            - A Scientific Phenomenon (e.g., how water moves, gravity, or friction) and explain it as a 'Magic Trick' of nature by drawing conclusions based on evidence.
+            - Attach the experiment with the charecters in the story.
+        4) Evaluate : context driver has to evaluate the phenomenons that are extracted and pick the best one.
+        5) Explaination : Safety auditor has to check the phenomenon is easy to explain or not to {age}-years-old.
+        6) Remember : context driver should remember elements (like water, air, fire, earth, solids and liquids) can also be part of other stories, which has high chance of generating similar experiments.
+        7) Generation: context driver should generate a unique experiment to this story, by adding new elements which makes the experiment unique.
+        8) Testing experiment : Safety auditor should test the experiment and check whether
+        it is suitable for {age}-years-old or not, in terms of understanding and safety(eg. if fire involves, say No).
+        Also check the experiment is unique to this story.
+        9) Steps : context driver Break the experiment into 5 to 6 ultrs-simple steps.
+        10) Steps evalution :  Safety audito evalute each step against the safety of the kid.
+        11) Language: context driver should use easy and simple daily routine {language} language for activity generation.
+        12) Final Check: Safety auditor evaluate the experiment in terms of do-able, safety and understandability for the {age}-years-old  before generating. 
+        13) Visualization: Describe exactly what the finished activity final output looks like (colors, textures, shapes) for an image generator.
+        Output Format: Provide ONLY valid JSON.
+            [{{
+                "title": "Creative Activity Name",
+                "age_appropriateness": "Explanation of why this fits a {age}-year-old",
+                "What it Teaches" : "Explain the phenomenon of science it teaches in detail",
+                "materials": ["item1", "item2"],
+                "Instructions": ["Step 1", "Step 2", "Step 3", "Step 4", "Step 5", "Step 6"], in {language} language
+                "image_generation_prompt": "A high-quality, top-down photo of the finished craft: [detailed description based on the activity in English language]"
+            }}]
         """
 
         try:
