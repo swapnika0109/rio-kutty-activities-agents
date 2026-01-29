@@ -15,8 +15,8 @@ class ArtAgent:
         language = state.get("language", "English")
         
         prompt = f"""
-        Context: You are an expert Early Childhood Educator and Art Instructor.
-        Task: Create a home-based art activity for a {age}-year-old based on the story: "{summary}".
+        Context: You are an expert Early Childhood Educator and Art or craft Instructor.
+        Task: Create a home-based art or craft activity for a {age}-year-old based on the story: "{summary}".
 
         Thinking Process (Follow these steps before outputting JSON):
         1. Skill Check: At {age} years old, what are the child's physical limitations? (e.g., can they use scissors? Yes, small kids safety one's). 
