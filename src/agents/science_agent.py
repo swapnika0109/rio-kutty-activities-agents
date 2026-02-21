@@ -19,7 +19,7 @@ class ScienceAgent:
 
         logger.info("Starting Science based activities generation...")
         story = state.get("story_text", "")
-        age = state.get("age", 5)
+        age = state.get("age","3-4")
         language = state.get("language", "English" )
 
         # Load prompt from registry

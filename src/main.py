@@ -20,7 +20,7 @@ async def startup_event():
 
 class ActivityRequest(BaseModel):
     story_id: str
-    age: int
+    age: str
     language: str = "en"
 
 class PubSubMessage(BaseModel):
