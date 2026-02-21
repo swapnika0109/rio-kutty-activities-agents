@@ -1,6 +1,7 @@
 from typing import TypedDict, List, Dict, Any, Annotated
 import operator
 import uuid
+import os
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.runnables import RunnableConfig
@@ -13,9 +14,12 @@ from ..agents.science_agent import ScienceAgent
 from ..agents.validators.validator_agent import ValidatorAgent
 from ..services.database.firestore_service import FirestoreService
 from ..services.database.storage_bucket import StorageBucketService
+from ..services.database.checkpoint_service import FirestoreCheckpointer
 from ..utils.logger import setup_logger
+from ..utils.config import get_settings
 
 logger = setup_logger(__name__)
+settings = get_settings()
 
 # Reducer function to merge dictionaries
 def merge_dicts(a: Dict, b: Dict) -> Dict:
@@ -32,10 +36,10 @@ class ActivityState(TypedDict):
     retry_count: Annotated[Dict[str, int], merge_dicts]
 
 # Initialize Components
-mcq_agent = MCQAgent()
-art_agent = ArtAgent()
-moral_agent = MoralAgent()
-science_agent = ScienceAgent()
+mcq_agent = MCQAgent(prompt_version=settings.MCQ_PROMPT_VERSION)
+art_agent = ArtAgent(prompt_version=settings.ART_PROMPT_VERSION)
+moral_agent = MoralAgent(prompt_version=settings.MORAL_PROMPT_VERSION)
+science_agent = ScienceAgent(prompt_version=settings.SCIENCE_PROMPT_VERSION)
 validator = ValidatorAgent()
 firestore_service = FirestoreService()
 storage_bucket_service = StorageBucketService()
@@ -256,4 +260,13 @@ for key, prefix in [("mcq", "mcq"), ("art", "art"), ("moral", "mor"), ("science"
     )
     workflow.add_edge(save, END)
 
-app_workflow = workflow.compile(checkpointer=MemorySaver())
+# Use persistent checkpointer in production, MemorySaver for local dev
+# Set USE_MEMORY_CHECKPOINTER=true for local development
+if os.environ.get("USE_MEMORY_CHECKPOINTER", "false").lower() == "true":
+    logger.info("Using MemorySaver checkpointer (development mode)")
+    checkpointer = MemorySaver()
+else:
+    logger.info("Using FirestoreCheckpointer (production mode)")
+    checkpointer = FirestoreCheckpointer()
+
+app_workflow = workflow.compile(checkpointer=checkpointer)

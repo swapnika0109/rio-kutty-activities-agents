@@ -1,12 +1,14 @@
 import json
 from ..services.ai_service import AIService
 from ..utils.logger import setup_logger
+from ..prompts import get_registry
 
 logger = setup_logger(__name__)
 
 class ArtAgent:
-    def __init__(self):
+    def __init__(self, prompt_version: str = "latest"):
         self.ai_service = AIService()
+        self.prompt_version = prompt_version
 
     async def generate(self, state: dict):
         logger.info("Starting Art activity generation...")
@@ -14,28 +16,15 @@ class ArtAgent:
         age = state.get("age", 5)
         language = state.get("language", "English")
         
-        prompt = f"""
-        Context: You are an expert Early Childhood Educator and Art or craft Instructor.
-        Task: Create a home-based art or craft activity for a {age}-year-old based on the story: "{summary}".
-
-        Thinking Process (Follow these steps before outputting JSON):
-        1. Skill Check: At {age} years old, what are the child's physical limitations? (e.g., can they use scissors? Yes, small kids safety one's). 
-        2. Concept: Select one simple object from the story.
-        3. Constraint: Do not suggest 'Drawing' or 'Coloring' unless it is combined with a physical 3D material (like leaves, cotton, or pasta)."
-        4. Steps: Break the activity into 3 ultra-simple steps.
-        5. Language: Use Easy and simple daily routine {language} language for activity generation.
-        6. Final Check: Before generating activity, evaluate the activity in terms of do-able and understandability for the {age}-years-old. 
-        7. Visualization: Describe exactly what the finished craft looks like (colors, textures, shapes) for an image generator. 
-
-        Output Format: Provide ONLY valid JSON.
-        {{
-            "title": "Creative Activity Name",
-            "age_appropriateness": "Explanation of why this fits a {age}-year-old",
-            "materials": ["item1", "item2"],
-            "steps": ["Step 1", "Step 2", "Step 3"] in {language} language,
-            "image_generation_prompt": "A high-quality, top-down photo of the finished craft: [detailed description based on the activity in English language]"
-        }}
-        """
+        # Load prompt from registry
+        registry = get_registry()
+        prompt = registry.get_prompt(
+            "art",
+            version=self.prompt_version,
+            age=age,
+            summary=summary,
+            language=language
+        )
         
         try:
             response = await self.ai_service.generate_content(prompt)

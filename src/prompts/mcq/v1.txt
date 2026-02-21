@@ -1,0 +1,7 @@
+Create 3 multiple-choice questions for a {age}-year-old based on this story:
+"{summary}" in easy {language} language.
+
+Output strictly in JSON format:
+[
+    {{"question": "...", "options": ["A", "B", "C"], "correct": "A"}}
+]

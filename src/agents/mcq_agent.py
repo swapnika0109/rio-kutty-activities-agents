@@ -1,12 +1,14 @@
 import json
 from ..services.ai_service import AIService
 from ..utils.logger import setup_logger
+from ..prompts import get_registry
 
 logger = setup_logger(__name__)
 
 class MCQAgent:
-    def __init__(self):
+    def __init__(self, prompt_version: str = "latest"):
         self.ai_service = AIService()
+        self.prompt_version = prompt_version
 
 
     async def generate(self, state: dict):
@@ -18,15 +20,16 @@ class MCQAgent:
         summary = state.get("story_text", "")
         age = state.get("age", 5)
         language = state.get("language", "English")
-        prompt = f"""
-         Create 3 multiple-choice questions for a {age}-year-old based on this story:
-        "{summary}" in easy {language} language.
         
-        Output strictly in JSON format:
-        [
-            {{"question": "...", "options": ["A", "B", "C"], "correct": "A"}}
-        ]
-        """
+        # Load prompt from registry
+        registry = get_registry()
+        prompt = registry.get_prompt(
+            "mcq",
+            version=self.prompt_version,
+            age=age,
+            summary=summary,
+            language=language
+        )
 
         try:
             response = await self.ai_service.generate_content(prompt)

@@ -1,11 +1,14 @@
 from ..utils.config import get_settings
 from ..utils.logger import setup_logger
+from ..utils.resilience import (
+    circuit_breaker,
+    retry_with_backoff,
+    CircuitBreakerError,
+    RateLimiter,
+)
 from google import genai
 from google.genai import types
 import hashlib
-import os
-import mimetypes
-import uuid
 from functools import lru_cache
 import io
 from huggingface_hub import InferenceClient
@@ -24,7 +27,37 @@ class AIService:
         # Ensure we use a model that supports image generation if requested
         # e.g., "gemini-2.0-flash-exp" or "gemini-2.5-flash-image"
         self.model_name = settings.GEMINI_MODEL 
+        self.fallback_model_name = settings.GEMINI_FALLBACK_MODEL
         self.multimodal_model_name = settings.MULTIMODAL_MODEL
+        self.rate_limiter = RateLimiter(
+            rate=settings.RATE_LIMIT_TOKENS_PER_SECOND,
+            capacity=settings.RATE_LIMIT_BURST_CAPACITY,
+        )
+
+    def _build_generate_content_config(self) -> types.GenerateContentConfig:
+        return types.GenerateContentConfig(
+            temperature=0.7,
+            max_output_tokens=4000,
+            safety_settings=[
+                types.SafetySetting(
+                    category="HARM_CATEGORY_HARASSMENT",
+                    threshold="BLOCK_LOW_AND_ABOVE",
+                ),
+                types.SafetySetting(
+                    category="HARM_CATEGORY_HATE_SPEECH",
+                    threshold="BLOCK_LOW_AND_ABOVE",
+                ),
+                types.SafetySetting(
+                    category="HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                    threshold="BLOCK_LOW_AND_ABOVE",
+                ),
+                types.SafetySetting(
+                    category="HARM_CATEGORY_DANGEROUS_CONTENT",
+                    threshold="BLOCK_LOW_AND_ABOVE",
+                ),
+            ],
+            response_mime_type="application/json",
+        )
 
     @property
     def client(self):
@@ -33,53 +66,70 @@ class AIService:
         return self._client
 
     @lru_cache(maxsize=100)
-    def _generate_cached(self, prompt_hash: str, prompt: str):
+    def _generate_cached(self, prompt_hash: str, prompt: str, model_name: str):
         """
         Internal method to cache AI text responses.
         """
-        logger.info(f"Generating new content for hash: {prompt_hash[:8]}...")
-
-        generate_content_config = types.GenerateContentConfig(
-            temperature=0.7,
-            max_output_tokens=4000, 
-            safety_settings=[
-                types.SafetySetting(
-                    category="HARM_CATEGORY_HARASSMENT",
-                    threshold="BLOCK_LOW_AND_ABOVE",  # Block few
-                ),
-                types.SafetySetting(
-                    category="HARM_CATEGORY_HATE_SPEECH",
-                    threshold="BLOCK_LOW_AND_ABOVE",  # Block few
-                ),
-                types.SafetySetting(
-                    category="HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                    threshold="BLOCK_LOW_AND_ABOVE",  # Block few
-                ),
-                types.SafetySetting(
-                    category="HARM_CATEGORY_DANGEROUS_CONTENT",
-                    threshold="BLOCK_LOW_AND_ABOVE",  # Block few
-                ),
-            ],
-            response_mime_type="application/json",
-        )
+        logger.info(f"Generating new content for hash: {prompt_hash[:8]} using {model_name}...")
         
         response = self.client.models.generate_content(
-            model=self.model_name,
+            model=model_name,
             contents=prompt,
-            config=generate_content_config
+            config=self._build_generate_content_config(),
         )
         return response.text
 
+    @circuit_breaker(
+        name="gemini_primary",
+        failure_threshold=settings.CIRCUIT_BREAKER_FAILURE_THRESHOLD,
+        recovery_timeout=settings.CIRCUIT_BREAKER_RECOVERY_TIMEOUT_SECONDS,
+    )
+    @retry_with_backoff(
+        max_retries=settings.MAX_RETRIES,
+        base_delay=settings.RETRY_DELAY_SECONDS,
+    )
+    async def _generate_with_primary(self, prompt: str) -> str:
+        await self.rate_limiter.acquire()
+        prompt_hash = hashlib.md5(prompt.encode()).hexdigest()
+        return self._generate_cached(prompt_hash, prompt, self.model_name)
+
+    @circuit_breaker(
+        name="gemini_fallback",
+        failure_threshold=settings.CIRCUIT_BREAKER_FAILURE_THRESHOLD,
+        recovery_timeout=settings.CIRCUIT_BREAKER_RECOVERY_TIMEOUT_SECONDS,
+    )
+    @retry_with_backoff(
+        max_retries=settings.MAX_RETRIES,
+        base_delay=settings.RETRY_DELAY_SECONDS,
+    )
+    async def _generate_with_fallback(self, prompt: str) -> str:
+        await self.rate_limiter.acquire()
+        prompt_hash = hashlib.md5(prompt.encode()).hexdigest()
+        return self._generate_cached(prompt_hash, prompt, self.fallback_model_name)
+
     async def generate_content(self, prompt: str) -> str:
         """
-        Public method to generate text content.
+        Public method to generate text content with primary model and fallback model.
         """
         try:
-            prompt_hash = hashlib.md5(prompt.encode()).hexdigest()
-            return self._generate_cached(prompt_hash, prompt)
-        except Exception as e:
-            logger.error(f"AI Generation failed: {str(e)}")
-            raise e
+            return await self._generate_with_primary(prompt)
+        except CircuitBreakerError as primary_cb_error:
+            logger.warning(f"Primary model unavailable due to circuit breaker: {primary_cb_error}")
+        except Exception as primary_error:
+            logger.warning(f"Primary model failed, trying fallback: {primary_error}")
+
+        if self.fallback_model_name == self.model_name:
+            logger.error("Fallback model is same as primary model and primary failed")
+            raise RuntimeError("No distinct fallback model available")
+
+        try:
+            return await self._generate_with_fallback(prompt)
+        except CircuitBreakerError as fallback_cb_error:
+            logger.error(f"Fallback model unavailable due to circuit breaker: {fallback_cb_error}")
+            raise
+        except Exception as fallback_error:
+            logger.error(f"Fallback model failed: {fallback_error}")
+            raise
 
     async def generate_multimodal_content(self, prompt: str) -> dict:
         """
@@ -89,6 +139,7 @@ class AIService:
         logger.info(f"Generating multimodal content for: {prompt[:30]}...")
         
         try:
+            await self.rate_limiter.acquire()
             contents = [
                 types.Content(
                     role="user",
@@ -157,12 +208,20 @@ class AIService:
             logger.error(f"Multimodal Generation failed: {str(e)}")
             raise e
 
-    async def generate_image(self, prompt: str):
+    @circuit_breaker(name="flux_image", failure_threshold=3, recovery_timeout=120)
+    @retry_with_backoff(max_retries=2, base_delay=2.0)
+    async def generate_image(self, prompt: str, fallback_on_failure: bool = True):
         """
         Generates an image from a prompt using the Together API.
+        Wrapped with circuit breaker and retry with exponential backoff.
+        
+        Args:
+            prompt: Image generation prompt
+            fallback_on_failure: If True, return None instead of raising on failure
         """
         try:
             logger.info(f"Generating image for: {prompt[:30]}...")
+            await self.rate_limiter.acquire()
             client = InferenceClient(
                 provider="together",
                 api_key=settings.HF_TOKEN,
@@ -177,6 +236,15 @@ class AIService:
             image.save(img_byte_arr, format='PNG')   
             img_byte_arr = img_byte_arr.getvalue()
             return img_byte_arr 
+        except CircuitBreakerError:
+            logger.error("FLUX circuit breaker is OPEN - image generation unavailable")
+            if fallback_on_failure:
+                logger.warning("Returning None as fallback for image generation")
+                return None
+            raise
         except Exception as e:
             logger.error(f"Image Generation failed: {str(e)}")
+            if fallback_on_failure:
+                logger.warning("Returning None as fallback for image generation")
+                return None
             raise e
