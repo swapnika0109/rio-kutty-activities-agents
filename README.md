@@ -15,6 +15,8 @@ The engine follows a simple but powerful process:
     -   **Art Agent**: Suggests creative drawing or craft ideas.
     -   **Moral Agent**: Helps find the lesson or values in the story.
     -   **Science Agent**: Explains the "how" and "why" behind story events.
+    -   AI calls run with retry + exponential backoff, circuit breaker protection, and rate limiting.
+    -   Text generation uses a primary low-cost Gemini model with automatic fallback model support.
 4.  **Validate**: A validator agent checks the content to ensure it's age-appropriate and high-quality.
 5.  **Save**: The activities are saved back to the database for the app to display.
 
@@ -68,8 +70,27 @@ rio-kutty-activities-agents/
 Create a `.env` file in the root directory:
 ```env
 GOOGLE_API_KEY=your_gemini_api_key
-PROJECT_ID=your_gcp_project_id
-GEMINI_MODEL=gemini-2.0-flash-exp
+GOOGLE_CLOUD_PROJECT=your_gcp_project_id
+GOOGLE_CLOUD_BUCKET=your_gcs_bucket_name
+FIRESTORE_DATABASE=(default)
+
+GEMINI_MODEL=gemini-2.0-flash-lite
+GEMINI_FALLBACK_MODEL=gemini-2.0-flash
+MULTIMODAL_MODEL=gemini-2.5-flash-image
+HF_TOKEN=your_huggingface_token
+
+MAX_RETRIES=3
+RETRY_DELAY_SECONDS=2
+CIRCUIT_BREAKER_FAILURE_THRESHOLD=5
+RATE_LIMIT_TOKENS_PER_SECOND=3
+RATE_LIMIT_BURST_CAPACITY=6
+CIRCUIT_BREAKER_RECOVERY_TIMEOUT_SECONDS=60
+
+# Prompt versioning
+MCQ_PROMPT_VERSION=latest
+ART_PROMPT_VERSION=latest
+MORAL_PROMPT_VERSION=latest
+SCIENCE_PROMPT_VERSION=latest
 ```
 
 ### 3. Install Dependencies
@@ -87,9 +108,27 @@ The server will start at `http://localhost:8080`.
 
 ## 📡 API Endpoints
 
--   `POST /generate-activities`: Directly triggers activity generation for a story.
--   `POST /pubsub-handler`: Listens for messages from Google Cloud Pub/Sub.
+-   `POST /generate-activities`: Directly triggers activity generation for a story (returns immediate accepted response; processing continues in background).
+-   `POST /pubsub-handler`: Listens for messages from Google Cloud Pub/Sub (returns `202` on valid message).
 -   `GET /health`: Simple health check.
+
+---
+
+## 🧪 DeepEval (Activity LLM Quality)
+
+Install test extras:
+```bash
+pip install -e .[test]
+```
+
+Run DeepEval activity checks (opt-in):
+```bash
+RUN_DEEPEVAL=true OPENAI_API_KEY=your_openai_key GOOGLE_API_KEY=your_gemini_api_key pytest tests/integration/test_deepeval_activity_llms.py -v
+```
+
+Notes:
+- DeepEval tests are skipped by default.
+- These tests call real LLMs and validate output quality for MCQ, Art, Moral, and Science generation.
 
 ---
 
