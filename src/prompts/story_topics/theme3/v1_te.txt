@@ -1,0 +1,20 @@
+# Story Topics Prompt — Telugu — v1
+#
+# అందుబాటులో ఉన్న వేరియబుల్స్ (Available variables):
+#   {age}       → వయస్సు సమూహం, e.g. "3-4", "5-6", "7-8"
+#   {category}  → యాదృచ్ఛికంగా ఎంచుకున్న విభాగం, e.g. "స్నేహం", "అడవి & జంతువులు"
+#
+# Expected output: JSON array of exactly 5 topic objects
+#   [
+#     {
+#       "title": "...",
+#       "theme": "...",
+#       "moral": "...",
+#       "age_group": "{age}",
+#       "description": "2-3 వాక్యాల కథా సారాంశం"
+#     }
+#   ]
+#
+# TODO: ఈ లైన్ కింద మీ తెలుగు ప్రాంప్ట్ రాయండి
+
+

@@ -7,10 +7,10 @@ from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.runnables import RunnableConfig
 
 # Import Agents
-from ..agents.mcq_agent import MCQAgent
-from ..agents.art_agent import ArtAgent
-from ..agents.moral_agent import MoralAgent
-from ..agents.science_agent import ScienceAgent
+from ..agents.activities.mcq_agent import MCQAgent
+from ..agents.activities.art_agent import ArtAgent
+from ..agents.activities.moral_agent import MoralAgent
+from ..agents.activities.science_agent import ScienceAgent
 from ..agents.validators.validator_agent import ValidatorAgent
 from ..services.database.firestore_service import FirestoreService
 from ..services.database.storage_bucket import StorageBucketService
@@ -21,19 +21,19 @@ from ..utils.config import get_settings
 logger = setup_logger(__name__)
 settings = get_settings()
 
-# Reducer function to merge dictionaries
-def merge_dicts(a: Dict, b: Dict) -> Dict:
-    return {**a, **b}
+# Import shared reducer — defined once in models.state to avoid duplication
+from ..models.state import merge_dicts
 
-# Update State Definition
+# State Definition for WF5 activities subgraph
 class ActivityState(TypedDict):
-    # Removed story_id, story_text, age, language from state as they are now in config
-    # Use Annotated to handle parallel updates
+    # story_id, story_text, age, language are in config.configurable (read-only)
     activities: Annotated[Dict[str, Any], merge_dicts]
     images: Annotated[Dict[str, str], merge_dicts]
     completed: Annotated[List[str], operator.add]
     errors: Annotated[Dict[str, str], merge_dicts]
     retry_count: Annotated[Dict[str, int], merge_dicts]
+    # Subgraph result status reported back to master: "completed" | "needs_human"
+    status: str
 
 # Initialize Components
 mcq_agent = MCQAgent(prompt_version=settings.MCQ_PROMPT_VERSION)
@@ -172,18 +172,22 @@ async def save_moral_image_node(data: dict, config: RunnableConfig):
     return None
 
 # --- Routing Logic ---
+# Max retries aligned with PARALLEL_WORKFLOW_MAX_RETRIES (4) so master can
+# accurately decide on human-in-loop escalation when this subgraph returns
+# status="needs_human".
+MAX_ACTIVITY_RETRIES = settings.PARALLEL_WORKFLOW_MAX_RETRIES
+
 def create_retry_logic(activity_type: str):
     def should_retry(state: ActivityState):
         if activity_type in state.get("errors", {}): return "fail"
-        
+
         is_completed = activity_type in state.get("completed", [])
         retries = state.get("retry_count", {}).get(activity_type, 0)
-        
-        # If we have the activity
-        if is_completed: 
+
+        if is_completed:
             return "next"
-            
-        if retries < 3:
+
+        if retries < MAX_ACTIVITY_RETRIES:
             return "retry"
         return "fail"
     return should_retry
@@ -213,11 +217,24 @@ async def route_start(state: ActivityState, config: RunnableConfig):
             
     return nodes_to_run
 
+# Terminal node when activities exhaust retries — reports needs_human to master
+def mark_activities_needs_human(state: ActivityState):
+    failed = list(state.get("errors", {}).keys())
+    logger.error(f"[WF5] Activities failed after {MAX_ACTIVITY_RETRIES} retries: {failed}")
+    return {"status": "needs_human"}
+
+# Mark all-completed terminal node
+def mark_activities_completed(state: ActivityState):
+    return {"status": "completed"}
+
+
 # --- Graph Construction ---
 workflow = StateGraph(ActivityState)
 
 # Add Nodes
-workflow.add_node("start", lambda s: s) # Dummy start node
+workflow.add_node("start", lambda s: s)  # Dummy start node
+workflow.add_node("mark_needs_human", mark_activities_needs_human)
+workflow.add_node("mark_completed", mark_activities_completed)
 
 # Activity 1: MCQ
 workflow.add_node("gen_mcq", generate_mcq_node)
@@ -242,23 +259,25 @@ workflow.add_node("save_sci", save_science_node)
 # Entry & Fan-out (Dynamic)
 workflow.set_entry_point("start")
 workflow.add_conditional_edges(
-    "start", 
+    "start",
     route_start,
-    # Define possible destinations
-    ["gen_mcq", "gen_art", "gen_mor", "gen_sci"] 
+    ["gen_mcq", "gen_art", "gen_mor", "gen_sci"]
 )
 
 # Define Flows (Standardized: Gen -> Val -> Retry/Save)
 for key, prefix in [("mcq", "mcq"), ("art", "art"), ("moral", "mor"), ("science", "sci")]:
     gen, val, save = f"gen_{prefix}", f"val_{prefix}", f"save_{prefix}"
-    
+
     workflow.add_edge(gen, val)
     workflow.add_conditional_edges(
-        val, 
-        create_retry_logic(key), 
-        {"next": save, "retry": gen, "fail": END}
+        val,
+        create_retry_logic(key),
+        {"next": save, "retry": gen, "fail": "mark_needs_human"}
     )
     workflow.add_edge(save, END)
+
+workflow.add_edge("mark_needs_human", END)
+workflow.add_edge("mark_completed", END)
 
 # Use persistent checkpointer in production, MemorySaver for local dev
 # Set USE_MEMORY_CHECKPOINTER=true for local development

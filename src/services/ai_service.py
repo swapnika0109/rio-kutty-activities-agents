@@ -107,28 +107,62 @@ class AIService:
         prompt_hash = hashlib.md5(prompt.encode()).hexdigest()
         return self._generate_cached(prompt_hash, prompt, self.fallback_model_name)
 
-    async def generate_content(self, prompt: str) -> str:
+    async def generate_content(self, prompt: str, model_override: str = None, fallback_override: str = None) -> str:
         """
         Public method to generate text content with primary model and fallback model.
-        """
-        try:
-            return await self._generate_with_primary(prompt)
-        except CircuitBreakerError as primary_cb_error:
-            logger.warning(f"Primary model unavailable due to circuit breaker: {primary_cb_error}")
-        except Exception as primary_error:
-            logger.warning(f"Primary model failed, trying fallback: {primary_error}")
 
-        if self.fallback_model_name == self.model_name:
+        Args:
+            prompt: The prompt to send to the model.
+            model_override: If provided, use this model instead of self.model_name.
+                            Used by per-workflow agents (e.g. STORY_CREATOR_MODEL).
+                            Existing callers that pass no override continue to use
+                            the default gemini-2.0-flash-lite.
+            fallback_override: If provided, use this as the fallback model.
+                               Defaults to self.fallback_model_name if not set.
+        """
+        # Default path: use decorated _generate_with_primary/_generate_with_fallback
+        # which have @circuit_breaker + @retry_with_backoff protection.
+        if model_override is None and fallback_override is None:
+            try:
+                return await self._generate_with_primary(prompt)
+            except CircuitBreakerError as primary_cb_error:
+                logger.warning(f"Primary model circuit breaker open: {primary_cb_error}")
+            except Exception as primary_error:
+                logger.warning(f"Primary model failed, trying fallback: {primary_error}")
+
+            if self.fallback_model_name == self.model_name:
+                logger.error("Fallback model is same as primary model and primary failed")
+                raise RuntimeError("No distinct fallback model available")
+
+            return await self._generate_with_fallback(prompt)
+
+        # Override path: per-workflow agents explicitly select a model.
+        # Use direct cached path with the caller-supplied models.
+        primary = model_override or self.model_name
+        fallback = fallback_override or self.fallback_model_name
+
+        try:
+            await self.rate_limiter.acquire()
+            prompt_hash = hashlib.md5(prompt.encode()).hexdigest()
+            return self._generate_cached(prompt_hash, prompt, primary)
+        except CircuitBreakerError as primary_cb_error:
+            logger.warning(f"Primary model ({primary}) unavailable due to circuit breaker: {primary_cb_error}")
+        except Exception as primary_error:
+            logger.warning(f"Primary model ({primary}) failed, trying fallback: {primary_error}")
+
+        if fallback == primary:
             logger.error("Fallback model is same as primary model and primary failed")
             raise RuntimeError("No distinct fallback model available")
 
         try:
-            return await self._generate_with_fallback(prompt)
+            await self.rate_limiter.acquire()
+            prompt_hash = hashlib.md5(prompt.encode()).hexdigest()
+            return self._generate_cached(prompt_hash, prompt, fallback)
         except CircuitBreakerError as fallback_cb_error:
-            logger.error(f"Fallback model unavailable due to circuit breaker: {fallback_cb_error}")
+            logger.error(f"Fallback model ({fallback}) unavailable due to circuit breaker: {fallback_cb_error}")
             raise
         except Exception as fallback_error:
-            logger.error(f"Fallback model failed: {fallback_error}")
+            logger.error(f"Fallback model ({fallback}) failed: {fallback_error}")
             raise
 
     async def generate_multimodal_content(self, prompt: str) -> dict:
@@ -228,9 +262,10 @@ class AIService:
             )
 
             # output is a PIL.Image object
+            # Model from config: defaults to FLUX.1-schnell (10x cheaper, same quality for children's art)
             image = client.text_to_image(
                 prompt,
-                model="black-forest-labs/FLUX.1-dev",
+                model=settings.FLUX_IMAGE_MODEL,
             )
             img_byte_arr = io.BytesIO()
             image.save(img_byte_arr, format='PNG')   

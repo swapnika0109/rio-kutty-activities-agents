@@ -1,6 +1,6 @@
-from ..services.ai_service import AIService
-from ..utils.logger import setup_logger
-from ..prompts import get_registry
+from ...services.ai_service import AIService
+from ...utils.logger import setup_logger
+from ...prompts import get_registry
 import json
 
 logger = setup_logger(__name__)
