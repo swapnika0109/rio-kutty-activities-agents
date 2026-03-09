@@ -68,6 +68,13 @@ class Settings(BaseSettings):
     # WF1 — number of high-level topic names extracted per theme and sent to each prompt
     TOPICS_PER_THEME: int = 5
 
+    # Langfuse — open-source LLM observability (free cloud tier: cloud.langfuse.com)
+    # Set LANGFUSE_ENABLED=true and provide keys to activate tracing.
+    LANGFUSE_ENABLED: bool = False
+    LANGFUSE_PUBLIC_KEY: str = ""
+    LANGFUSE_SECRET_KEY: str = ""
+    LANGFUSE_HOST: str = "https://cloud.langfuse.com"  # or your self-hosted URL
+
     # Performance & Scaling
     MAX_CONCURRENCY: int = 10
     HF_TOKEN: str

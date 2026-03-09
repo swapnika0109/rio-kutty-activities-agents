@@ -12,10 +12,11 @@ class ArtAgent:
 
     async def generate(self, state: dict):
         logger.info("Starting Art activity generation...")
-        summary = state.get("story_text", "")
+        # Use art_seed (concise art direction from story) when available
+        summary = state.get("art_seed") or state.get("story_text", "")
         age = state.get("age", "3-4")
         language = state.get("language", "English")
-        
+
         # Load prompt from registry
         registry = get_registry()
         prompt = registry.get_prompt(

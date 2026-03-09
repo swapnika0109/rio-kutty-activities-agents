@@ -25,6 +25,7 @@ dependencies = [
     "huggingface_hub>=0.1.0",
     "google-cloud-texttospeech>=2.16.0",
     "deepeval>=1.4.0",
+    "langfuse>=2.0.0",
 ]
 
 [project.optional-dependencies]

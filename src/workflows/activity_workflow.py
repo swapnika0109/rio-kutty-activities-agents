@@ -46,15 +46,20 @@ storage_bucket_service = StorageBucketService()
 
 
 def unpack_config(state: ActivityState, config: RunnableConfig):
-    # Access read only data from config
-    settings = config.get("configurable", {})
-    # Return a merged dict for the agents to use
+    # Access read-only data from config
+    cfg = config.get("configurable", {})
+    # Merge state with config values so agents receive both story seeds and metadata
     return {
-        **state, 
-        "story_id": settings.get("story_id"), 
-        "story_text": settings.get("story_text"), 
-        "age": settings.get("age"), 
-        "language": settings.get("language")
+        **state,
+        "story_id":        cfg.get("story_id"),
+        "story_text":      cfg.get("story_text"),
+        "age":             cfg.get("age"),
+        "language":        cfg.get("language"),
+        # Activity seeds — sourced from the story JSON, passed via master config
+        "mcq_seeds":       cfg.get("mcq_seeds", []),
+        "art_seed":        cfg.get("art_seed", ""),
+        "science_concepts": cfg.get("science_concepts", []),
+        "moral":           cfg.get("moral", ""),
     }
 
 # --- Generation Nodes ---

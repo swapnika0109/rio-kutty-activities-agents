@@ -14,13 +14,21 @@ class ScienceAgent:
     async def generate(self, state: dict):
         """
         Generates Science based activities for the story.
-        Expected state: { "Instructions": "...", "Images": "..." }
+        Uses science_concepts (list of {concept, explanation} dicts) from the story when available.
+        Expected state: { "science_concepts": [...], "story_text": "...", "age": "3-4", ... }
         """
-
         logger.info("Starting Science based activities generation...")
-        story = state.get("story_text", "")
-        age = state.get("age","3-4")
-        language = state.get("language", "English" )
+        science_concepts = state.get("science_concepts") or []
+        if science_concepts:
+            story = "; ".join(
+                f"{c.get('concept', '')}: {c.get('explanation', '')}"
+                for c in science_concepts
+                if isinstance(c, dict)
+            )
+        else:
+            story = state.get("story_text", "")
+        age = state.get("age", "3-4")
+        language = state.get("language", "English")
 
         # Load prompt from registry
         registry = get_registry()

@@ -112,12 +112,16 @@ async def self_correct_topics_node(state: StoryTopicsState, config: RunnableConf
 
 
 async def save_topics_node(state: StoryTopicsState, config: RunnableConfig) -> dict:
-    # Titles are already persisted per-theme inside TopicsCreatorAgent._generate_one()
-    # (cached in rio_titles_theme{N} on first LLM call).
-    # This node just marks the evaluation-approved step in workflow state.
+    # Topics are already persisted per-theme inside TopicsCreatorAgent._generate_one()
+    # (cached in the theme topic collections on first LLM call).
+    # This node generates a topics_id for the batch and marks the evaluation-approved step.
     topics = state.get("topics", [])
-    logger.info(f"[WF1] {len(topics)} topics evaluation-approved, proceeding to batch story creation")
-    return {"completed": ["topics"]}
+    topics_id = str(uuid.uuid4())
+    logger.info(
+        f"[WF1] {len(topics)} topics evaluation-approved (topics_id={topics_id}), "
+        "proceeding to batch story creation"
+    )
+    return {"completed": ["topics"], "story_ids": {"_topics_id": topics_id}}
 
 
 async def batch_create_stories_node(state: StoryTopicsState, config: RunnableConfig) -> dict:
@@ -136,6 +140,7 @@ async def batch_create_stories_node(state: StoryTopicsState, config: RunnableCon
     # Local imports to avoid module-level circular imports between WF1/WF2/Master
     from ..workflows.story_creator_workflow import story_creator_workflow
     from ..workflows.master_workflow import master_workflow
+    from ..utils.tracing import get_trace_callbacks
 
     cfg = config.get("configurable", {})
     age      = cfg.get("age", "3-4")
@@ -147,7 +152,10 @@ async def batch_create_stories_node(state: StoryTopicsState, config: RunnableCon
         logger.warning("[WF1/batch] No topics in state — skipping batch story creation")
         return {}
 
-    logger.info(f"[WF1/batch] Starting batch creation for {len(topics)} topics")
+    # Retrieve the topics_id generated in save_topics_node
+    topics_id = (state.get("story_ids") or {}).get("_topics_id") or str(uuid.uuid4())
+
+    logger.info(f"[WF1/batch] Starting batch creation for {len(topics)} topics (topics_id={topics_id})")
 
     semaphore = asyncio.Semaphore(settings.MAX_CONCURRENCY)
     story_id_map: dict[str, str] = {}
@@ -167,7 +175,15 @@ async def batch_create_stories_node(state: StoryTopicsState, config: RunnableCon
                     "story_id":  story_id,
                     "age":       age,
                     "language":  language,
-                }
+                    "topics_id": topics_id,
+                    "theme":     theme,
+                },
+                "callbacks": get_trace_callbacks(
+                    name="WF2-story",
+                    metadata={"story_id": story_id, "topic": title, "theme": theme, "age": age},
+                    tags=["wf2", "story", "batch"],
+                    session_id=topics_id,
+                ),
             }
             wf2_initial = {
                 "selected_topic":      topic,
@@ -189,24 +205,31 @@ async def batch_create_stories_node(state: StoryTopicsState, config: RunnableCon
                 logger.warning(f"[WF1/batch] WF2 produced empty story for '{title}' — skipping media")
                 return title, story_id, False
 
-            # --- Master: WF3 + WF4 + WF5 in parallel ---
+            # --- Master: WF3 + WF4 then WF5 ---
             master_config = {
                 "configurable": {
                     "thread_id": f"{story_id}_master",
                     "story_id":  story_id,
                     "age":       age,
                     "language":  language,
-                }
+                    "theme":     theme,
+                },
+                "callbacks": get_trace_callbacks(
+                    name="master-pipeline",
+                    metadata={"story_id": story_id, "topic": title, "theme": theme, "age": age},
+                    tags=["master", "image", "audio", "activities", "batch"],
+                    session_id=topics_id,
+                ),
             }
             master_initial = {
-                "story_id":           story_id,
-                "topics":             None,
-                "story":              story,
-                "workflow_statuses":  {},
-                "workflow_retries":   {},
+                "story_id":            story_id,
+                "topics":              None,
+                "story":               story,
+                "workflow_statuses":   {},
+                "workflow_retries":    {},
                 "human_loop_requests": {},
-                "human_decisions":    {},
-                "errors":             {},
+                "human_decisions":     {},
+                "errors":              {},
             }
             try:
                 await master_workflow.ainvoke(master_initial, config=master_config)
@@ -214,7 +237,7 @@ async def batch_create_stories_node(state: StoryTopicsState, config: RunnableCon
                 logger.error(f"[WF1/batch] Master workflow failed for '{title}' ({story_id}): {e}")
                 # Story was already saved by WF2 — don't block; record partial success
 
-            # --- Update library doc with story_id ---
+            # --- Update topic library doc with story_id ---
             try:
                 await firestore.update_title_story_id(
                     theme, age, lang_code, filter_val, title, story_id

@@ -95,6 +95,9 @@ class StoryCreatorAgent:
                 fallback_override=settings.STORY_CREATOR_FALLBACK_MODEL,
             )
             story = self._parse_story(response)
+            # Fall back to the topic title if the LLM didn't include one
+            if not story.get("title") and topic_title:
+                story["title"] = topic_title
             logger.info(f"[StoryCreator] Generated story: '{story.get('title', 'untitled')}'")
             return {
                 "story": story,
@@ -111,10 +114,22 @@ class StoryCreatorAgent:
         """Parse JSON dict from LLM response."""
         try:
             cleaned = response.replace("```json", "").replace("```", "").strip()
-            return json.loads(cleaned)
+            data = json.loads(cleaned)
         except json.JSONDecodeError:
             start = response.find("{")
             end = response.rfind("}")
             if start != -1 and end != -1:
-                return json.loads(response[start : end + 1])
-            raise ValueError(f"Could not parse story from response: {response[:200]}")
+                data = json.loads(response[start : end + 1])
+            else:
+                raise ValueError(f"Could not parse story from response: {response[:200]}")
+
+        # Prompts use "story" key; normalise to "story_text" expected by the rest of the pipeline
+        if "story" in data and "story_text" not in data:
+            data["story_text"] = data.pop("story")
+
+        # Derive title from topic if the LLM omitted it (topic is injected into the prompt)
+        # The caller's state["selected_topic"]["title"] is the canonical title
+        # but we don't have it here, so leave it blank and let save_story fall back gracefully.
+        # The real fix: prompts should include "title" in the JSON schema.
+
+        return data

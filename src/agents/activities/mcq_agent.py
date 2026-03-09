@@ -13,14 +13,17 @@ class MCQAgent:
 
     async def generate(self, state: dict):
         """
-        Generates MCQs based on the story summary.
-        Expected state: { "story_text": "...", "age": 5, ... }
+        Generates MCQs based on mcq_seeds from the story.
+        Uses mcq_seeds (list of key story points) when available,
+        falls back to story_text summary.
+        Expected state: { "mcq_seeds": [...], "story_text": "...", "age": 5, ... }
         """
         logger.info("Starting MCQ generation...")
-        summary = state.get("story_text", "")
+        mcq_seeds = state.get("mcq_seeds") or []
+        summary = ", ".join(mcq_seeds) if mcq_seeds else state.get("story_text", "")
         age = state.get("age", "3-4")
         language = state.get("language", "English")
-        
+
         # Load prompt from registry
         registry = get_registry()
         prompt = registry.get_prompt(

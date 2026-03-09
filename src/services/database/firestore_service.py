@@ -8,21 +8,21 @@ logger = setup_logger(__name__)
 
 # ---------------------------------------------------------------------------
 # Collection name maps
-# Titles:  rio_titles_theme1/2/3
-# Stories: rio_stories_theme1/2/3
+# Topics:  planet_protectors_topics / mindful_topics / chill_stories_topics
+# Stories: planet_protectors_stories / mindful_stories / chill_stories
 # Activities: activities_v1 (unchanged, tagged with story_id)
 # ---------------------------------------------------------------------------
 
-_TITLE_COLLECTIONS = {
-    "theme1": "rio_titles_theme1",
-    "theme2": "rio_titles_theme2",
-    "theme3": "rio_titles_theme3",
+_TOPIC_COLLECTIONS = {
+    "theme1": "planet_protectors_topics",
+    "theme2": "mindful_topics",
+    "theme3": "chill_stories_topics",
 }
 
 _STORY_COLLECTIONS = {
-    "theme1": "rio_stories_theme1",
-    "theme2": "rio_stories_theme2",
-    "theme3": "rio_stories_theme3",
+    "theme1": "planet_protectors_stories",
+    "theme2": "mindful_stories",
+    "theme3": "chill_stories",
 }
 
 
@@ -51,12 +51,12 @@ class FirestoreService:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _title_collection(theme: str) -> str:
-        return _TITLE_COLLECTIONS.get(theme, "rio_titles_theme1")
+    def _topic_collection(theme: str) -> str:
+        return _TOPIC_COLLECTIONS.get(theme, "planet_protectors_topics")
 
     @staticmethod
     def _story_collection(theme: str) -> str:
-        return _STORY_COLLECTIONS.get(theme, "rio_stories_theme1")
+        return _STORY_COLLECTIONS.get(theme, "planet_protectors_stories")
 
     # ------------------------------------------------------------------
     # Activities  (activities_v1 — unchanged)
@@ -151,16 +151,20 @@ class FirestoreService:
             logger.error(f"get_story failed: {e}")
             return None
 
-    async def save_story(self, story_id: str, story: dict, theme: str) -> None:
-        """Saves/upserts story to rio_stories_theme{N} with story_id as document ID."""
+    async def save_story(self, story_id: str, story: dict, theme: str, topics_id: str | None = None) -> None:
+        """Saves/upserts story to the theme story collection with story_id as document ID."""
         try:
             col = self._story_collection(theme)
             payload = {
                 **story,
                 "story_id": story_id,
                 "theme": theme,
+                "title": story.get("title", ""),
+                "description": story.get("description", story.get("story_seed", "")),
                 "updated_at": firestore.SERVER_TIMESTAMP,
             }
+            if topics_id:
+                payload["topics_id"] = topics_id
             self.db.collection(col).document(story_id).set(payload, merge=True)
             logger.info(f"[Firestore] Story saved: {col}/{story_id}")
         except Exception as e:
@@ -261,13 +265,14 @@ class FirestoreService:
             raise
 
     # ------------------------------------------------------------------
-    # Title Library  (rio_titles_theme{N})
+    # Topic Library  (planet_protectors_topics / mindful_topics / chill_stories_topics)
     # Doc ID: {age_norm}__{lang}__{filter_value_norm}
+    # Each doc contains a topics_id UUID and a list of topic dicts.
     # ------------------------------------------------------------------
 
     @staticmethod
     def _library_doc_id(age: str, lang: str, filter_value: str) -> str:
-        """Deterministic Firestore-safe doc ID (theme is encoded by the collection name)."""
+        """Deterministic Firestore-safe doc ID."""
         import re
         norm = re.sub(r"[^a-z0-9]+", "_", filter_value.lower()).strip("_")
         return f"{age.replace('-', '_')}__{lang}__{norm}"
@@ -275,15 +280,33 @@ class FirestoreService:
     async def get_title_library_entry(
         self, theme: str, age: str, lang: str, filter_value: str
     ) -> list | None:
-        """Returns cached titles from the theme title collection, or None on miss."""
+        """
+        Returns cached topics from the theme topic collection, or None on miss.
+        Re-injects filter_type and filter_value (stored at doc level) into each
+        topic dict so WF1 batch routing still has them in the flat topic list.
+        """
         try:
-            col = self._title_collection(theme)
+            col = self._topic_collection(theme)
             doc_id = self._library_doc_id(age, lang, filter_value)
             doc = self.db.collection(col).document(doc_id).get()
             if doc.exists:
-                titles = doc.to_dict().get("titles", [])
-                logger.info(f"[Firestore] Cache hit: {col}/{doc_id} ({len(titles)} titles)")
-                return titles
+                data = doc.to_dict()
+                topics = data.get("topics", [])
+                doc_filter_type  = data.get("filter_type", "")
+                doc_filter_value = data.get("filter_value", filter_value)
+                doc_theme        = data.get("theme", theme)
+                # Re-inject doc-level fields so the in-memory topic list is complete
+                enriched = [
+                    {
+                        **t,
+                        "theme":        doc_theme,
+                        "filter_type":  doc_filter_type,
+                        "filter_value": doc_filter_value,
+                    }
+                    for t in topics
+                ]
+                logger.info(f"[Firestore] Cache hit: {col}/{doc_id} ({len(enriched)} topics)")
+                return enriched
             return None
         except Exception as e:
             logger.error(f"get_title_library_entry failed: {e}")
@@ -297,21 +320,31 @@ class FirestoreService:
         filter_type: str,
         filter_value: str,
         titles: list,
+        topics_id: str | None = None,
     ) -> None:
-        """Upserts generated titles into the theme title collection."""
+        """
+        Upserts generated topics into the theme topic collection.
+        filter_type and filter_value are stored once at the doc level; they are
+        stripped from each topic item to avoid repetition.
+        """
+        import uuid as _uuid
+        # Strip per-topic fields that are already on the doc to avoid repetition
+        _strip = {"filter_type", "filter_value"}
+        clean_topics = [{k: v for k, v in t.items() if k not in _strip} for t in titles]
         try:
-            col = self._title_collection(theme)
+            col = self._topic_collection(theme)
             doc_id = self._library_doc_id(age, lang, filter_value)
             self.db.collection(col).document(doc_id).set({
+                "topics_id":    topics_id or str(_uuid.uuid4()),
                 "theme":        theme,
                 "age":          age,
                 "language":     lang,
                 "filter_type":  filter_type,
                 "filter_value": filter_value,
-                "titles":       titles,
+                "topics":       clean_topics,
                 "created_at":   firestore.SERVER_TIMESTAMP,
             })
-            logger.info(f"[Firestore] Titles saved: {col}/{doc_id} ({len(titles)} titles)")
+            logger.info(f"[Firestore] Topics saved: {col}/{doc_id} ({len(clean_topics)} topics)")
         except Exception as e:
             logger.error(f"save_title_library_entry failed: {e}")
             raise
@@ -325,26 +358,53 @@ class FirestoreService:
         title_text: str,
         story_id: str,
     ) -> None:
-        """Patches story_id onto a specific title entry in the theme title collection."""
+        """Patches story_id onto a specific topic entry in the theme topic collection."""
         try:
-            col = self._title_collection(theme)
+            col = self._topic_collection(theme)
             doc_id = self._library_doc_id(age, lang, filter_value)
             doc_ref = self.db.collection(col).document(doc_id)
             doc = doc_ref.get()
             if not doc.exists:
-                logger.warning(f"[Firestore] Title doc not found: {col}/{doc_id}")
+                logger.warning(f"[Firestore] Topic doc not found: {col}/{doc_id}")
                 return
-            titles = list(doc.to_dict().get("titles", []))
-            for t in titles:
+            topics = list(doc.to_dict().get("topics", []))
+            for t in topics:
                 if t.get("title") == title_text:
                     t["story_id"] = story_id
-                    doc_ref.update({"titles": titles, "updated_at": firestore.SERVER_TIMESTAMP})
+                    doc_ref.update({"topics": topics, "updated_at": firestore.SERVER_TIMESTAMP})
                     logger.info(f"[Firestore] story_id={story_id} patched in {col}/{doc_id}")
                     return
             logger.warning(f"[Firestore] Title '{title_text}' not found in {col}/{doc_id}")
         except Exception as e:
             logger.error(f"update_title_story_id failed: {e}")
             raise
+
+    # ------------------------------------------------------------------
+    # Checkpoint cleanup
+    # ------------------------------------------------------------------
+
+    async def delete_workflow_checkpoints(self, thread_ids: list[str]) -> None:
+        """
+        Deletes workflow_checkpoints documents for the given thread_ids.
+        Called after a full story pipeline completes successfully.
+        """
+        try:
+            batch = self.db.batch()
+            deleted = 0
+            for thread_id in thread_ids:
+                q = (
+                    self.db.collection("workflow_checkpoints")
+                    .where(filter=FieldFilter("thread_id", "==", thread_id))
+                )
+                docs = list(q.stream())
+                for doc in docs:
+                    batch.delete(doc.reference)
+                    deleted += 1
+            if deleted:
+                batch.commit()
+                logger.info(f"[Firestore] Cleaned {deleted} checkpoints for {len(thread_ids)} threads")
+        except Exception as e:
+            logger.error(f"delete_workflow_checkpoints failed (non-fatal): {e}")
 
     # ------------------------------------------------------------------
     # Status

@@ -7,6 +7,7 @@ from ..workflows.story_topics_workflow import story_topics_workflow
 from ..workflows.story_creator_workflow import story_creator_workflow
 from ..services.database.firestore_service import FirestoreService
 from ..utils.logger import setup_logger
+from ..utils.tracing import get_trace_callbacks
 
 logger = setup_logger(__name__)
 
@@ -29,16 +30,24 @@ class SelectTopicRequest(BaseModel):
 
 async def _run_topics_workflow(request: GenerateTopicsRequest):
     try:
+        session_id = str(uuid.uuid4())
         config = {
             "configurable": {
-                "thread_id": f"{str(uuid.uuid4())}_wf1",
+                "thread_id": f"{session_id}_wf1",
                 "country": request.country,
                 "religion": request.religion,
                 "preferences": request.preferences,
                 "age": request.age,
                 "language": request.language,
                 "theme": request.theme or "",
-            }
+            },
+            "callbacks": get_trace_callbacks(
+                name="WF1-topics",
+                metadata={"age": request.age, "language": request.language,
+                          "country": request.country, "theme": request.theme},
+                tags=["wf1", "topics"],
+                session_id=session_id,
+            ),
         }
         initial_state = {
             "topics": None,
@@ -65,7 +74,14 @@ async def _run_story_workflow(story_id: str, selected_topic: dict, age: str, lan
                 "religion": selected_topic.get("religion", ["Any"]),
                 "preferences": selected_topic.get("preferences", ["Any"]),
                 "language": language,
-            }
+            },
+            "callbacks": get_trace_callbacks(
+                name="WF2-story",
+                metadata={"story_id": story_id, "topic": selected_topic.get("title"),
+                          "theme": selected_topic.get("theme"), "age": age},
+                tags=["wf2", "story"],
+                session_id=story_id,
+            ),
         }
         initial_state = {
             "selected_topic": selected_topic,

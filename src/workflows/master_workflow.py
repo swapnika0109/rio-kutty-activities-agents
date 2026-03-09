@@ -1,35 +1,29 @@
 """
 Master Workflow — orchestrates the full story pipeline.
 
-This module does NOT manage WF1 or WF2 directly — those are triggered by separate
-API calls (POST /generate-topics → human picks → POST /select-topic).
-The master workflow is responsible only for the PARALLEL phase:
+Execution order:
+    1. [dispatch_media]     — WF3 (image) + WF4 (audio) in parallel via asyncio.gather
+    2. [collect_media]      — check results; escalate HITL if any failed after 4 retries
+       └→ needs_human → [handle_media_decision] → admin resumes with retry/skip/override
+    3. [dispatch_activities] — WF5 (MCQ/Art/Science/Moral) with seeds from story JSON
+    4. [collect_activities] — check WF5 result; HITL if needed
+       └→ needs_human → [handle_activities_decision]
+    5. [finalize]           — cleanup Firestore checkpoints, mark pipeline done
 
-    POST /generate-media/{story_id}
-        ↓
-    [dispatch_parallel]  ← asyncio.gather over 3 compiled subgraphs
-      ├→ WF3 image_workflow
-      ├→ WF4 audio_workflow
-      └→ WF5 activity_workflow (existing)
-        ↓
-    [collect_and_check]
-      ├→ all completed → [finalize] → END
-      └→ any needs_human → [publish_hitl_notification] → interrupt() ← pause
-                           → admin calls POST /resume-workflow
-                           → [handle_decision] → END
+Why activities run AFTER image+audio:
+- Activities use seeds (mcq_seeds, art_seed, science_concepts, moral) from the story.
+- Image and audio must be saved first so the story record is complete before activities
+  are linked to it.
 
-Why asyncio.gather instead of LangGraph Send()?
-- WF3, WF4, WF5 are fully self-contained compiled subgraphs that manage their
-  own state, retries, and checkpointing. They don't share state with each other.
-- asyncio.gather gives true Python-level parallelism with a clean fan-in pattern.
-- Each subgraph checkpoints independently under its own thread_id.
-- Master just calls them, collects results, and handles failures.
+Human-in-loop per workflow type:
+- Image/audio failures use LangGraph interrupt() in collect_media.
+  Admin can also bypass HITL by calling POST /generate-image/{story_id} or
+  POST /generate-audio/{story_id} directly, then resuming the master with 'override'.
+- Activity failures use LangGraph interrupt() in collect_activities.
 
-Human-in-loop (HITL) pattern:
-- LangGraph interrupt() suspends the graph at the collect_results_node.
-- Full state persists in FirestoreCheckpointer under the master's thread_id.
-- Admin calls POST /resume-workflow with {thread_id, decision}.
-- LangGraph resumes via graph.ainvoke(None, config, command=Command(resume=decision)).
+Checkpoint cleanup:
+- On successful finalization, all sub-thread checkpoints are deleted from Firestore
+  since completed workflow state is persisted in the story documents.
 """
 
 import asyncio
@@ -66,24 +60,44 @@ def _sub_thread_id(story_id: str, wf: str) -> str:
     return f"{story_id}_{wf}"
 
 
-def _build_sub_config(
+def _build_media_config(
     story_id: str, wf: str, story: dict, age: str, language: str, theme: str
 ) -> dict:
-    """Build config.configurable for a subgraph invocation."""
+    """Build config.configurable for WF3/WF4 subgraph invocation."""
     return {
         "configurable": {
-            "thread_id": _sub_thread_id(story_id, wf),
-            "story_id": story_id,
-            "story_text": story.get("story_text", ""),
+            "thread_id":   _sub_thread_id(story_id, wf),
+            "story_id":    story_id,
+            "story_text":  story.get("story_text", ""),
             "story_title": story.get("title", ""),
-            "age": age,
-            "language": language,
-            "theme": theme,
+            "age":         age,
+            "language":    language,
+            "theme":       theme,
         }
     }
 
 
-def _publish_hitl_notification(story_id: str, failed_workflows: list[dict]) -> None:
+def _build_activities_config(
+    story_id: str, story: dict, age: str, language: str
+) -> dict:
+    """Build config.configurable for WF5 subgraph invocation with story seeds."""
+    return {
+        "configurable": {
+            "thread_id":        _sub_thread_id(story_id, "wf5"),
+            "story_id":         story_id,
+            "story_text":       story.get("story_text", ""),
+            "age":              age,
+            "language":         language,
+            # Activity seeds from story JSON
+            "mcq_seeds":        story.get("mcq_seeds", []),
+            "art_seed":         story.get("art_seed", ""),
+            "science_concepts": story.get("science_concepts", []),
+            "moral":            story.get("moral", ""),
+        }
+    }
+
+
+def _publish_hitl_notification(story_id: str, failed_workflows: list[dict], phase: str) -> None:
     """
     Publishes a Pub/Sub message to notify admin of workflows needing human review.
     Non-blocking — if publish fails, we log and continue (interrupt() still fires).
@@ -96,149 +110,131 @@ def _publish_hitl_notification(story_id: str, failed_workflows: list[dict]) -> N
     try:
         publisher = pubsub_v1.PublisherClient()
         data = json.dumps({
-            "story_id": story_id,
+            "story_id":        story_id,
+            "phase":           phase,
             "failed_workflows": failed_workflows,
             "action_required": "Review and resume via POST /resume-workflow",
         }).encode("utf-8")
         future = publisher.publish(topic, data)
         future.result(timeout=5)
-        logger.info(f"[Master] HITL notification published to {topic}")
+        logger.info(f"[Master] HITL notification published to {topic} (phase={phase})")
     except Exception as e:
         logger.error(f"[Master] Failed to publish HITL notification: {e}")
 
 
+def _collect_thread_ids(story_id: str) -> list[str]:
+    """Returns all sub-thread IDs for checkpoint cleanup."""
+    return [
+        f"{story_id}_master",
+        _sub_thread_id(story_id, "wf2"),
+        _sub_thread_id(story_id, "wf3"),
+        _sub_thread_id(story_id, "wf4"),
+        _sub_thread_id(story_id, "wf5"),
+    ]
+
+
 # ---------------------------------------------------------------------------
-# Nodes
+# Phase 1 nodes — Media (WF3 image + WF4 audio in parallel)
 # ---------------------------------------------------------------------------
 
-async def dispatch_parallel_node(state: MasterWorkflowState, config: RunnableConfig) -> dict:
+async def dispatch_media_node(state: MasterWorkflowState, config: RunnableConfig) -> dict:
     """
-    Dispatches WF3, WF4, WF5 in parallel using asyncio.gather.
-
-    Why gather instead of LangGraph's parallel edges?
-    Each sub-workflow is a fully compiled graph with its own state and checkpoint
-    thread. gather lets us run them truly concurrently and collect their final
-    states atomically, without needing to model their internal state in master.
+    Dispatches WF3 (image) + WF4 (audio) in parallel via asyncio.gather.
+    Activities (WF5) are NOT dispatched here — they run after both media workflows succeed.
     """
     cfg = config.get("configurable", {})
     story_id = state.get("story_id") or cfg.get("story_id")
-    age = cfg.get("age", "3-4")
+    age      = cfg.get("age", "3-4")
     language = cfg.get("language", "English")
-    theme = cfg.get("theme", "theme1")
-    story = state.get("story") or {}
+    theme    = cfg.get("theme", "theme1")
+    story    = state.get("story") or {}
 
-    logger.info(f"[Master] Dispatching parallel workflows for story_id={story_id} theme={theme}")
+    logger.info(f"[Master] Dispatching image+audio for story_id={story_id} theme={theme}")
 
-    wf3_config = _build_sub_config(story_id, "wf3", story, age, language, theme)
-    wf4_config = _build_sub_config(story_id, "wf4", story, age, language, theme)
-    wf5_config = {
-        "configurable": {
-            "thread_id": _sub_thread_id(story_id, "wf5"),
-            "story_id": story_id,
-            "story_text": story.get("story_text", ""),
-            "age": age,
-            "language": language,
-        }
-    }
+    wf3_config = _build_media_config(story_id, "wf3", story, age, language, theme)
+    wf4_config = _build_media_config(story_id, "wf4", story, age, language, theme)
 
     wf3_initial = {
-        "story_text": story.get("story_text", ""),
+        "story_text":  story.get("story_text", ""),
         "story_title": story.get("title", ""),
         "retry_count": 0,
-        "status": "pending",
-        "completed": [],
-        "errors": {},
+        "status":      "pending",
+        "completed":   [],
+        "errors":      {},
     }
     wf4_initial = {
-        "story_text": story.get("story_text", ""),
-        "language": language,
-        "voice": settings.TTS_VOICE_NAME,
+        "story_text":  story.get("story_text", ""),
+        "language":    language,
+        "voice":       settings.TTS_VOICE_NAME,
         "retry_count": 0,
-        "status": "pending",
-        "completed": [],
-        "errors": {},
-    }
-    wf5_initial = {
-        "activities": {},
-        "images": {},
-        "completed": [],
-        "errors": {},
-        "retry_count": {},
-        "status": "pending",
+        "status":      "pending",
+        "completed":   [],
+        "errors":      {},
     }
 
-    # Run all 3 in parallel; return_exceptions=True so one failure doesn't cancel others
     results = await asyncio.gather(
         image_workflow.ainvoke(wf3_initial, config=wf3_config),
         audio_workflow.ainvoke(wf4_initial, config=wf4_config),
-        activity_workflow.ainvoke(wf5_initial, config=wf5_config),
         return_exceptions=True,
     )
+    wf3_result, wf4_result = results
 
-    wf3_result, wf4_result, wf5_result = results
-
-    def _extract_status(result, wf_id: str) -> str:
+    def _status(result, wf_id: str) -> str:
         if isinstance(result, Exception):
             logger.error(f"[Master] {wf_id} raised exception: {result}")
             return "needs_human"
         return result.get("status", "needs_human")
 
     statuses = {
-        "wf3": _extract_status(wf3_result, "wf3"),
-        "wf4": _extract_status(wf4_result, "wf4"),
-        "wf5": _extract_status(wf5_result, "wf5"),
+        "wf3": _status(wf3_result, "wf3"),
+        "wf4": _status(wf4_result, "wf4"),
     }
     errors = {}
-    for wf_id, result in [("wf3", wf3_result), ("wf4", wf4_result), ("wf5", wf5_result)]:
+    for wf_id, result in [("wf3", wf3_result), ("wf4", wf4_result)]:
         if isinstance(result, Exception):
             errors[wf_id] = str(result)
-        elif result.get("errors"):
+        elif isinstance(result, dict) and result.get("errors"):
             errors[wf_id] = str(result["errors"])
 
-    logger.info(f"[Master] Parallel results: {statuses}")
-    return {
-        "workflow_statuses": statuses,
-        "errors": errors,
-    }
+    logger.info(f"[Master] Media results: {statuses}")
+    return {"workflow_statuses": statuses, "errors": errors}
 
 
-async def collect_results_node(state: MasterWorkflowState, config: RunnableConfig) -> dict:
+async def collect_media_node(state: MasterWorkflowState, config: RunnableConfig) -> dict:
     """
-    Checks parallel workflow statuses.
-    If any workflow needs human review, publishes Pub/Sub and calls interrupt().
-    interrupt() suspends the graph here and persists state to Firestore.
-    The graph resumes when admin calls POST /resume-workflow.
+    Checks image + audio workflow results.
+    If any failed, notifies via Pub/Sub and suspends via interrupt() for HITL.
+    Resume by calling POST /resume-workflow with decision: retry | skip | override.
     """
     statuses = state.get("workflow_statuses", {})
     failed = [
         {"workflow_id": wf_id, "error": state.get("errors", {}).get(wf_id, "unknown")}
-        for wf_id, status in statuses.items()
-        if status == "needs_human"
+        for wf_id in ("wf3", "wf4")
+        if statuses.get(wf_id) == "needs_human"
     ]
 
     if not failed:
-        logger.info("[Master] All parallel workflows completed successfully")
+        logger.info("[Master] Image + audio completed successfully")
         return {}
 
     story_id = state.get("story_id")
-    logger.warning(f"[Master] {len(failed)} workflow(s) need human review: {[f['workflow_id'] for f in failed]}")
+    logger.warning(f"[Master] Media HITL: {[f['workflow_id'] for f in failed]}")
+    _publish_hitl_notification(story_id, failed, phase="media")
 
-    _publish_hitl_notification(story_id, failed)
-
-    # interrupt() suspends here. The value passed is the interrupt "payload"
-    # visible to the admin when they query the workflow state.
-    # Graph resumes when admin calls: graph.ainvoke(None, config, command=Command(resume=decision))
     decision = interrupt({
-        "message": "One or more workflows failed and need human review",
-        "story_id": story_id,
+        "message":         "Image or audio generation failed — human review required",
+        "story_id":        story_id,
         "failed_workflows": failed,
-        "instructions": "Call POST /resume-workflow with decision: 'retry', 'skip', or 'override'",
+        "instructions":    (
+            "Call POST /resume-workflow with decision: 'retry', 'skip', or 'override'. "
+            "You can also retry directly via POST /generate-image/{story_id} or "
+            "POST /generate-audio/{story_id} then resume with 'override'."
+        ),
     })
 
-    # decision is the value passed by admin via Command(resume=decision)
     human_decisions = {f["workflow_id"]: decision for f in failed}
     return {
-        "human_decisions": human_decisions,
+        "human_decisions":   human_decisions,
         "workflow_statuses": {
             **statuses,
             **{f["workflow_id"]: "human_loop" for f in failed},
@@ -246,31 +242,117 @@ async def collect_results_node(state: MasterWorkflowState, config: RunnableConfi
     }
 
 
-async def handle_decision_node(state: MasterWorkflowState, config: RunnableConfig) -> dict:
-    """
-    Handles admin's decision after HITL:
-    - "retry": re-invoke the failed workflow(s) (not implemented here — admin re-triggers via API)
-    - "skip":  mark workflow as skipped and proceed to finalize
-    - "override": treat as completed (admin has manually handled the issue)
-    """
-    decisions = state.get("human_decisions", {})
-    statuses = dict(state.get("workflow_statuses", {}))
-
+async def handle_media_decision_node(state: MasterWorkflowState, config: RunnableConfig) -> dict:
+    """Applies admin decision for media HITL (skip/override marks as resolved)."""
+    decisions  = state.get("human_decisions", {})
+    statuses   = dict(state.get("workflow_statuses", {}))
     for wf_id, decision in decisions.items():
-        if decision in ("skip", "override"):
-            statuses[wf_id] = "skipped"
-            logger.info(f"[Master] Admin decision for {wf_id}: {decision}")
-        else:
-            logger.info(f"[Master] Admin decision for {wf_id}: retry — admin should re-trigger")
-
+        if wf_id in ("wf3", "wf4"):
+            statuses[wf_id] = "skipped" if decision in ("skip", "override") else statuses[wf_id]
+            logger.info(f"[Master] Media decision for {wf_id}: {decision}")
     return {"workflow_statuses": statuses}
 
 
+# ---------------------------------------------------------------------------
+# Phase 2 nodes — Activities (WF5 runs AFTER image+audio are done)
+# ---------------------------------------------------------------------------
+
+async def dispatch_activities_node(state: MasterWorkflowState, config: RunnableConfig) -> dict:
+    """
+    Dispatches WF5 (activities) after image+audio are complete.
+    Activity seeds (mcq_seeds, art_seed, science_concepts, moral) are pulled from
+    the story dict and passed via config so each agent uses concise, relevant input.
+    """
+    cfg      = config.get("configurable", {})
+    story_id = state.get("story_id") or cfg.get("story_id")
+    age      = cfg.get("age", "3-4")
+    language = cfg.get("language", "English")
+    story    = state.get("story") or {}
+
+    logger.info(f"[Master] Dispatching activities for story_id={story_id}")
+
+    wf5_config = _build_activities_config(story_id, story, age, language)
+    wf5_initial = {
+        "activities":  {},
+        "images":      {},
+        "completed":   [],
+        "errors":      {},
+        "retry_count": {},
+        "status":      "pending",
+    }
+
+    try:
+        wf5_result = await activity_workflow.ainvoke(wf5_initial, config=wf5_config)
+        wf5_status = wf5_result.get("status", "needs_human")
+        errors     = {}
+        if wf5_result.get("errors"):
+            errors["wf5"] = str(wf5_result["errors"])
+    except Exception as e:
+        logger.error(f"[Master] WF5 raised exception: {e}")
+        wf5_status = "needs_human"
+        errors     = {"wf5": str(e)}
+
+    logger.info(f"[Master] Activities result: {wf5_status}")
+    statuses = {**state.get("workflow_statuses", {}), "wf5": wf5_status}
+    return {"workflow_statuses": statuses, "errors": {**state.get("errors", {}), **errors}}
+
+
+async def collect_activities_node(state: MasterWorkflowState, config: RunnableConfig) -> dict:
+    """
+    Checks WF5 result. If failed, fires HITL interrupt().
+    """
+    statuses = state.get("workflow_statuses", {})
+    if statuses.get("wf5") != "needs_human":
+        logger.info("[Master] Activities completed successfully")
+        return {}
+
+    story_id = state.get("story_id")
+    failed   = [{"workflow_id": "wf5", "error": state.get("errors", {}).get("wf5", "unknown")}]
+    logger.warning(f"[Master] Activities HITL for story_id={story_id}")
+    _publish_hitl_notification(story_id, failed, phase="activities")
+
+    decision = interrupt({
+        "message":         "Activity generation failed — human review required",
+        "story_id":        story_id,
+        "failed_workflows": failed,
+        "instructions":    "Call POST /resume-workflow with decision: 'retry', 'skip', or 'override'",
+    })
+
+    return {
+        "human_decisions":   {**state.get("human_decisions", {}), "wf5": decision},
+        "workflow_statuses": {**statuses, "wf5": "human_loop"},
+    }
+
+
+async def handle_activities_decision_node(state: MasterWorkflowState, config: RunnableConfig) -> dict:
+    """Applies admin decision for activities HITL."""
+    decisions = state.get("human_decisions", {})
+    statuses  = dict(state.get("workflow_statuses", {}))
+    if "wf5" in decisions:
+        decision = decisions["wf5"]
+        statuses["wf5"] = "skipped" if decision in ("skip", "override") else statuses["wf5"]
+        logger.info(f"[Master] Activities decision: {decision}")
+    return {"workflow_statuses": statuses}
+
+
+# ---------------------------------------------------------------------------
+# Finalize — cleanup checkpoints
+# ---------------------------------------------------------------------------
+
 async def finalize_node(state: MasterWorkflowState, config: RunnableConfig) -> dict:
-    """Mark overall pipeline as complete."""
+    """
+    Marks pipeline as complete and cleans up Firestore checkpoints.
+    Checkpoint data is no longer needed once the full story (with image_url,
+    audio_url, and activities) is persisted in the story document.
+    """
     story_id = state.get("story_id")
     statuses = state.get("workflow_statuses", {})
     logger.info(f"[Master] Pipeline finalized for story_id={story_id}: {statuses}")
+
+    # Clean up all checkpoints for this story's threads
+    thread_ids = _collect_thread_ids(story_id)
+    await firestore.delete_workflow_checkpoints(thread_ids)
+
     return {}
 
 
@@ -278,13 +360,22 @@ async def finalize_node(state: MasterWorkflowState, config: RunnableConfig) -> d
 # Routing
 # ---------------------------------------------------------------------------
 
-def route_after_collect(
+def route_after_media(
     state: MasterWorkflowState,
-) -> Literal["finalize", "handle_decision"]:
-    """Route to finalize if all done, or handle_decision after HITL resume."""
+) -> Literal["handle_media_decision", "dispatch_activities"]:
+    """After media collection: handle HITL or proceed to activities."""
     statuses = state.get("workflow_statuses", {})
-    if any(s == "human_loop" for s in statuses.values()):
-        return "handle_decision"
+    if any(statuses.get(wf) == "human_loop" for wf in ("wf3", "wf4")):
+        return "handle_media_decision"
+    return "dispatch_activities"
+
+
+def route_after_activities(
+    state: MasterWorkflowState,
+) -> Literal["handle_activities_decision", "finalize"]:
+    """After activities collection: handle HITL or finalize."""
+    if state.get("workflow_statuses", {}).get("wf5") == "human_loop":
+        return "handle_activities_decision"
     return "finalize"
 
 
@@ -294,19 +385,29 @@ def route_after_collect(
 
 master = StateGraph(MasterWorkflowState)
 
-master.add_node("dispatch_parallel", dispatch_parallel_node)
-master.add_node("collect_results", collect_results_node)
-master.add_node("handle_decision", handle_decision_node)
-master.add_node("finalize", finalize_node)
+master.add_node("dispatch_media",              dispatch_media_node)
+master.add_node("collect_media",               collect_media_node)
+master.add_node("handle_media_decision",       handle_media_decision_node)
+master.add_node("dispatch_activities",         dispatch_activities_node)
+master.add_node("collect_activities",          collect_activities_node)
+master.add_node("handle_activities_decision",  handle_activities_decision_node)
+master.add_node("finalize",                    finalize_node)
 
-master.set_entry_point("dispatch_parallel")
-master.add_edge("dispatch_parallel", "collect_results")
+master.set_entry_point("dispatch_media")
+master.add_edge("dispatch_media", "collect_media")
 master.add_conditional_edges(
-    "collect_results",
-    route_after_collect,
-    {"finalize": "finalize", "handle_decision": "handle_decision"},
+    "collect_media",
+    route_after_media,
+    {"handle_media_decision": "handle_media_decision", "dispatch_activities": "dispatch_activities"},
 )
-master.add_edge("handle_decision", "finalize")
+master.add_edge("handle_media_decision", "dispatch_activities")
+master.add_edge("dispatch_activities", "collect_activities")
+master.add_conditional_edges(
+    "collect_activities",
+    route_after_activities,
+    {"handle_activities_decision": "handle_activities_decision", "finalize": "finalize"},
+)
+master.add_edge("handle_activities_decision", "finalize")
 master.add_edge("finalize", END)
 
 if os.environ.get("USE_MEMORY_CHECKPOINTER", "false").lower() == "true":
