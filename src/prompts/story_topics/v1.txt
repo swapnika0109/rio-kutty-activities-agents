@@ -1,0 +1,9 @@
+# Story Topics Prompt — v1
+# Variables available: {age}, {language}, {theme}
+# Expected output: JSON array of topic objects with fields:
+#   title, theme, moral, age_group, description
+#
+# TODO: Write your prompt here
+
+
+

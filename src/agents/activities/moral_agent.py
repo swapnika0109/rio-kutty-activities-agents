@@ -1,7 +1,7 @@
 import json
-from ..services.ai_service import AIService
-from ..utils.logger import setup_logger
-from ..prompts import get_registry
+from ...services.ai_service import AIService
+from ...utils.logger import setup_logger
+from ...prompts import get_registry
 
 logger = setup_logger(__name__)
 
@@ -12,10 +12,11 @@ class MoralAgent:
 
     async def generate(self, state: dict):
         logger.info("Starting Moral activity generation...")
-        story = state.get("story_text", "")
+        # Use moral (the story's moral lesson string) when available
+        story = state.get("moral") or state.get("story_text", "")
         age = state.get("age", "3-4")
         language = state.get("language", "English")
-        
+
         # Load prompt from registry
         registry = get_registry()
         prompt = registry.get_prompt(

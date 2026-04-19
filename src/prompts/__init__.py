@@ -13,6 +13,21 @@ from pathlib import Path
 from typing import Optional
 import re
 
+
+def _safe_format(template: str, **kwargs) -> str:
+    """
+    Substitute only {simple_identifier} placeholders, leaving JSON curly
+    braces (e.g. multi-line {\\n  "key": ...}) untouched.
+
+    str.format() fails on JSON examples inside prompts because it tries to
+    interpret {\\n  "story": "..."} as a format field.
+    """
+    def _replace(m: re.Match) -> str:
+        key = m.group(1)
+        return str(kwargs[key]) if key in kwargs else m.group(0)
+
+    return re.sub(r"\{([A-Za-z_][A-Za-z0-9_]*)\}", _replace, template)
+
 from ..utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -79,7 +94,7 @@ class PromptRegistry:
         
         # Interpolate variables if provided
         if format_kwargs:
-            prompt = prompt_template.format(**format_kwargs)
+            prompt = _safe_format(prompt_template, **format_kwargs)
         else:
             prompt = prompt_template
         

@@ -1,0 +1,15 @@
+# Self Correction Prompt — v1
+# The SelfCorrectionAgent builds its prompt programmatically in
+# src/agents/story/self_correction_agent.py (_build_correction_prompt).
+# No external prompt file is needed for self-correction.
+#
+# The prompt format is:
+#   "You are a content quality editor for children's educational stories.
+#    The following {content_key} was evaluated and found to have these issues: {issues}
+#    Original content: {content}
+#    Please provide an improved version..."
+#
+# TODO: If you want to customise the self-correction instructions,
+#       update _build_correction_prompt() in
+#       src/agents/story/self_correction_agent.py
+
