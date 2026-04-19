@@ -49,9 +49,10 @@ def _unpack_config(state: ImageWorkflowState, config: RunnableConfig) -> dict:
     cfg = config.get("configurable", {})
     return {
         **state,
-        "story_id": cfg.get("story_id"),
-        "age": cfg.get("age", "3-4"),
-        "language": cfg.get("language", "English"),
+        "story_id":     cfg.get("story_id"),
+        "age":          cfg.get("age", "3-4"),
+        "language":     cfg.get("language", "English"),
+        "image_prompt": state.get("image_prompt") or cfg.get("image_prompt", ""),
     }
 
 

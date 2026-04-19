@@ -107,7 +107,7 @@ class AIService:
         prompt_hash = hashlib.md5(prompt.encode()).hexdigest()
         return self._generate_cached(prompt_hash, prompt, self.fallback_model_name)
 
-    async def generate_content(self, prompt: str, model_override: str = None, fallback_override: str = None) -> str:
+    async def generate_content(self, prompt: str, model_override: str = None, fallback_override: str = None, use_cache: bool = True) -> str:
         """
         Public method to generate text content with primary model and fallback model.
 
@@ -137,14 +137,24 @@ class AIService:
             return await self._generate_with_fallback(prompt)
 
         # Override path: per-workflow agents explicitly select a model.
-        # Use direct cached path with the caller-supplied models.
         primary = model_override or self.model_name
         fallback = fallback_override or self.fallback_model_name
 
+        def _call(model: str) -> str:
+            if use_cache:
+                prompt_hash = hashlib.md5(prompt.encode()).hexdigest()
+                return self._generate_cached(prompt_hash, prompt, model)
+            # Bypass lru_cache — call the underlying API directly
+            response = self.client.models.generate_content(
+                model=model,
+                contents=prompt,
+                config=self._build_generate_content_config(),
+            )
+            return response.text
+
         try:
             await self.rate_limiter.acquire()
-            prompt_hash = hashlib.md5(prompt.encode()).hexdigest()
-            return self._generate_cached(prompt_hash, prompt, primary)
+            return _call(primary)
         except CircuitBreakerError as primary_cb_error:
             logger.warning(f"Primary model ({primary}) unavailable due to circuit breaker: {primary_cb_error}")
         except Exception as primary_error:
@@ -156,8 +166,7 @@ class AIService:
 
         try:
             await self.rate_limiter.acquire()
-            prompt_hash = hashlib.md5(prompt.encode()).hexdigest()
-            return self._generate_cached(prompt_hash, prompt, fallback)
+            return _call(fallback)
         except CircuitBreakerError as fallback_cb_error:
             logger.error(f"Fallback model ({fallback}) unavailable due to circuit breaker: {fallback_cb_error}")
             raise

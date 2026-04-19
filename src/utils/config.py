@@ -66,7 +66,7 @@ class Settings(BaseSettings):
     SELF_CORRECTION_PROMPT_VERSION: str = "latest"
 
     # WF1 — number of high-level topic names extracted per theme and sent to each prompt
-    TOPICS_PER_THEME: int = 5
+    TOPICS_PER_THEME: int = 1
 
     # Langfuse — open-source LLM observability (free cloud tier: cloud.langfuse.com)
     # Set LANGFUSE_ENABLED=true and provide keys to activate tracing.

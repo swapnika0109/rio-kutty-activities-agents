@@ -127,13 +127,14 @@ def _build_media_config(
     """Build config.configurable for WF3/WF4 subgraph invocation."""
     return {
         "configurable": {
-            "thread_id":   _sub_thread_id(story_id, wf),
-            "story_id":    story_id,
-            "story_text":  story.get("story_text", ""),
-            "story_title": story.get("title", ""),
-            "age":         age,
-            "language":    language,
-            "theme":       theme,
+            "thread_id":    _sub_thread_id(story_id, wf),
+            "story_id":     story_id,
+            "story_text":   story.get("story_text", ""),
+            "story_title":  story.get("title", ""),
+            "image_prompt": story.get("image_prompt", ""),
+            "age":          age,
+            "language":     language,
+            "theme":        theme,
         }
     }
 

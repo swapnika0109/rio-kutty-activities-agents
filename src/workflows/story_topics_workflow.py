@@ -166,6 +166,11 @@ async def batch_create_stories_node(state: StoryTopicsState, config: RunnableCon
         title      = topic.get("title", "")
         theme      = topic.get("theme", "")
         filter_val = topic.get("filter_value", "")
+        # Inject the deterministic topic doc ID so WF2 can store it on the story
+        topic = {
+            **topic,
+            "topic_document_id": firestore._library_doc_id(age, lang_code, filter_val),
+        }
 
         async with semaphore:
             # ----------------------------------------------------------------

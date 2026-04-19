@@ -2,7 +2,7 @@ class MindfullTopics:
     def __init__(self):
         self.topics = {
   "religion_sources": {
-    "hinduism": [
+    "hindu": [
       "Bhagavad Gita",
       "Ramayana",
       "Mahabharata",
@@ -38,7 +38,7 @@ class MindfullTopics:
       "99 Names of Allah — Wisdom Stories",
       "Arabian Nights — Moral Tales"
     ],
-    "christianity": [
+    "christian": [
       "Bible — Old Testament Stories",
       "Bible — New Testament Parables of Jesus",
       "Parable of the Good Samaritan",
@@ -54,7 +54,7 @@ class MindfullTopics:
       "Celtic Christian Wisdom",
       "Orthodox Christian Parables"
     ],
-    "buddhism": [
+    "buddhist": [
       "Jataka Tales — Previous Lives of the Buddha",
       "Life of Siddhartha Gautama",
       "The Buddha and the Mustard Seed",
@@ -66,7 +66,7 @@ class MindfullTopics:
       "Milarepa — The Singer of Wisdom",
       "Nagarjuna's Wisdom Parables"
     ],
-    "sikhism": [
+    "sikh": [
       "Guru Nanak — Stories of Compassion",
       "Guru Gobind Singh — Courage and Sacrifice",
       "Guru Granth Sahib — Wisdom Verses",
@@ -76,7 +76,7 @@ class MindfullTopics:
       "Sikh Folklore — Langar and Equality",
       "Story of the Five Beloved Ones"
     ],
-    "judaism": [
+    "jewish": [
       "Torah — Stories of Abraham",
       "Torah — Story of Moses",
       "Torah — Story of Ruth and Loyalty",
@@ -88,7 +88,7 @@ class MindfullTopics:
       "Midrash — Stories Behind the Stories",
       "Jewish Folklore — Golem Stories"
     ],
-    "jainism": [
+    "jain": [
       "Life of Mahavira",
       "Jain Parable of the Six Blind Men",
       "Anekantavada — Many Sides of Truth",

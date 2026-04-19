@@ -173,20 +173,32 @@ class FirestoreService:
             logger.error(f"get_story_by_title failed for '{title}': {e}")
             return None
 
-    async def save_story(self, story_id: str, story: dict, theme: str, topics_id: str | None = None) -> None:
+    async def save_story(
+        self,
+        story_id: str,
+        story: dict,
+        theme: str,
+        topics_id: str | None = None,
+        topic_id: str | None = None,
+        topic_document_id: str | None = None,
+    ) -> None:
         """Saves/upserts story to the theme story collection with story_id as document ID."""
         try:
             col = self._story_collection(theme)
             payload = {
                 **story,
-                "story_id": story_id,
-                "theme": theme,
-                "title": story.get("title", ""),
+                "story_id":   story_id,
+                "theme":      theme,
+                "title":      story.get("title", ""),
                 "description": story.get("description", story.get("story_seed", "")),
                 "updated_at": firestore.SERVER_TIMESTAMP,
             }
             if topics_id:
                 payload["topics_id"] = topics_id
+            if topic_id:
+                payload["topic_id"] = topic_id
+            if topic_document_id:
+                payload["topic_document_id"] = topic_document_id
             self.db.collection(col).document(story_id).set(payload, merge=True)
             logger.info(f"[Firestore] Story saved: {col}/{story_id}")
         except Exception as e:
@@ -196,19 +208,13 @@ class FirestoreService:
     async def save_story_image(
         self, story_id: str, image_url: str, generation_prompt: str, theme: str
     ) -> None:
-        """Updates image_url on the story doc and logs metadata in story_images_v1."""
+        """Updates image_url and image_prompt on the story doc."""
         try:
             col = self._story_collection(theme)
             self.db.collection(col).document(story_id).update({
-                "image_url": image_url,
-                "updated_at": firestore.SERVER_TIMESTAMP,
-            })
-            self.db.collection("story_images_v1").document().set({
-                "story_id": story_id,
-                "image_url": image_url,
-                "generation_prompt": generation_prompt,
-                "theme": theme,
-                "created_at": firestore.SERVER_TIMESTAMP,
+                "image_url":    image_url,
+                "image_prompt": generation_prompt,
+                "updated_at":   firestore.SERVER_TIMESTAMP,
             })
             logger.info(f"[Firestore] image_url saved on {col}/{story_id}")
         except Exception as e:
@@ -224,24 +230,17 @@ class FirestoreService:
         theme: str,
         audio_timepoints: list | None = None,
     ) -> None:
-        """Updates audio_url and audio_timepoints on the story doc and logs metadata in story_audio_v1."""
+        """Updates audio_url, voice, and audio_timepoints on the story doc."""
         try:
             col = self._story_collection(theme)
             story_update = {
-                "audio_url": audio_url,
+                "audio_url":  audio_url,
+                "voice":      voice,
                 "updated_at": firestore.SERVER_TIMESTAMP,
             }
             if audio_timepoints:
                 story_update["audio_timepoints"] = audio_timepoints
             self.db.collection(col).document(story_id).update(story_update)
-            self.db.collection("story_audio_v1").document().set({
-                "story_id": story_id,
-                "audio_url": audio_url,
-                "language": language,
-                "voice": voice,
-                "theme": theme,
-                "created_at": firestore.SERVER_TIMESTAMP,
-            })
             logger.info(f"[Firestore] audio_url saved on {col}/{story_id}")
         except Exception as e:
             logger.error(f"save_story_audio failed: {e}")
@@ -326,9 +325,12 @@ class FirestoreService:
                 doc_filter_type  = data.get("filter_type", "")
                 doc_filter_value = data.get("filter_value", filter_value)
                 doc_theme        = data.get("theme", theme)
-                # Re-inject doc-level fields so the in-memory topic list is complete
+                import uuid as _uuid
+                # Re-inject doc-level fields so the in-memory topic list is complete.
+                # Back-fill topic_id for legacy docs that predate this field.
                 enriched = [
                     {
+                        "topic_id":     t.get("topic_id") or str(_uuid.uuid4()),
                         **t,
                         "theme":        doc_theme,
                         "filter_type":  doc_filter_type,
@@ -359,8 +361,8 @@ class FirestoreService:
         stripped from each topic item to avoid repetition.
         """
         import uuid as _uuid
-        # Strip per-topic fields that are already on the doc to avoid repetition,
-        # but preserve story_id if already set — it must survive re-saves.
+        # Strip per-topic fields stored at doc level to avoid repetition.
+        # Preserve story_id and topic_id — they must survive re-saves.
         _strip = {"filter_type", "filter_value"}
         clean_topics = [{k: v for k, v in t.items() if k not in _strip} for t in titles]
         try:

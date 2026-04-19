@@ -17,6 +17,7 @@ Output state["topics"] — flat list of dicts:
 import asyncio
 import json
 import re
+import uuid
 
 from ...services.ai_service import AIService
 from ...services.database.firestore_service import FirestoreService
@@ -107,6 +108,7 @@ def _parse_pipe_response(
     """
     def _make_topic(title: str, description: str) -> dict:
         return {
+            "topic_id":     str(uuid.uuid4()),
             "title":        title.strip(),
             "description":  description.strip(),
             "theme":        theme,
@@ -160,24 +162,34 @@ class TopicsCreatorAgent:
 
     async def generate(self, state: dict) -> dict:
         """
-        Generates / retrieves cached story topic titles from all 3 themes.
+        Generates / retrieves cached story topic titles.
 
         State fields used (from config.configurable via _unpack_config):
-            age, language, religion, country
+            age, language, religion, country, theme (optional — if set, only that theme runs)
         """
         age      = state.get("age", "3-4")
         language = state.get("language", "English")
         religion = state.get("religion", "universal_wisdom")
         country  = state.get("country", "Any")
+        theme    = state.get("theme", "")   # e.g. "theme1", "theme2", "theme3", or "" for all
 
         lang_code = _LANG_CODE.get(language, "en")
         version   = f"v{self.prompt_version}_{lang_code}"
         n         = settings.TOPICS_PER_THEME
         registry  = get_registry()
 
+        # Normalise: accept "1"/"2"/"3" as well as "theme1"/"theme2"/"theme3"
+        requested = theme.lower().strip() if theme else ""
+        if requested and not requested.startswith("theme"):
+            requested = f"theme{requested}"
+
+        run_theme1 = not requested or requested == "theme1"
+        run_theme2 = not requested or requested == "theme2"
+        run_theme3 = not requested or requested == "theme3"
+
         logger.info(
-            f"[TopicsCreator] age={age} lang={lang_code} "
-            f"religion={religion} country={country} n={n}"
+            f"[TopicsCreator] age={age} lang={lang_code} religion={religion} "
+            f"country={country} n={n} theme_filter={requested or 'all'}"
         )
 
         all_topics: list[dict] = []
@@ -185,73 +197,91 @@ class TopicsCreatorAgent:
         # ------------------------------------------------------------------
         # Theme 1 — PlanetProtector, one record per COUNTRY
         # ------------------------------------------------------------------
-        t1 = await self._generate_one(
-            theme_name   = "theme1",
-            version      = version,
-            filter_type  = "country",
-            filter_value = country,
-            prompt_kwargs= {
-                "age":        age,
-                "length":     n,
-                "promptText": _pp_prompt_text(age, n),
-                "country":    country,
-            },
-            age=age, lang=lang_code, registry=registry,
-        )
-        all_topics.extend(t1)
-
-        # ------------------------------------------------------------------
-        # Theme 2 — MindfullTopics, one record per RELIGION (all religions)
-        # ------------------------------------------------------------------
-        all_religions = list(MindfullTopics().topics.get("religion_sources", {}).keys())
-
-        t2_results = await asyncio.gather(*[
-            self._generate_one(
-                theme_name   = "theme2",
+        if run_theme1:
+            t1 = await self._generate_one(
+                theme_name   = "theme1",
                 version      = version,
-                filter_type  = "religion",
-                filter_value = rel,
+                filter_type  = "country",
+                filter_value = country,
                 prompt_kwargs= {
                     "age":        age,
                     "length":     n,
-                    "promptText": _mindful_prompt_text(rel, n),
-                    "religion":   rel,
+                    "promptText": _pp_prompt_text(age, n),
+                    "country":    country,
                 },
                 age=age, lang=lang_code, registry=registry,
             )
-            for rel in all_religions
-        ], return_exceptions=True)
+            all_topics.extend(t1)
 
-        for result in t2_results:
-            if isinstance(result, list):
-                all_topics.extend(result)
+        # ------------------------------------------------------------------
+        # Theme 2 — MindfullTopics, filtered by religion (or all if "any")
+        # ------------------------------------------------------------------
+        if run_theme2:
+            all_religions = list(MindfullTopics().topics.get("religion_sources", {}).keys())
+            _skip = {"any", "universal_wisdom", ""}
+            if isinstance(religion, list):
+                requested_religions = [r.lower().strip() for r in religion if r.lower().strip() not in _skip]
+            else:
+                requested_religions = [religion.lower().strip()] if religion and religion.lower().strip() not in _skip else []
+
+            if requested_religions:
+                religions_to_run = [r for r in all_religions if r.lower() in requested_religions]
+                if not religions_to_run:
+                    logger.warning(f"[TopicsCreator] Religion(s) '{religion}' not found in taxonomy, using all")
+                    religions_to_run = all_religions
+                else:
+                    logger.info(f"[TopicsCreator] Religion filter: {religions_to_run}")
+            else:
+                religions_to_run = all_religions
+
+            t2_results = await asyncio.gather(*[
+                self._generate_one(
+                    theme_name   = "theme2",
+                    version      = version,
+                    filter_type  = "religion",
+                    filter_value = rel,
+                    prompt_kwargs= {
+                        "age":        age,
+                        "length":     n,
+                        "promptText": _mindful_prompt_text(rel, n),
+                        "religion":   rel,
+                    },
+                    age=age, lang=lang_code, registry=registry,
+                )
+                for rel in religions_to_run
+            ], return_exceptions=True)
+
+            for result in t2_results:
+                if isinstance(result, list):
+                    all_topics.extend(result)
 
         # ------------------------------------------------------------------
         # Theme 3 — ChillStories, one record per LIFESTYLE AREA (all 7)
         # ------------------------------------------------------------------
-        lifestyle_areas = (
-            ChillStoriesTopics().topics.get("meta", {}).get("lifestyle_areas", [])
-        )
-
-        t3_results = await asyncio.gather(*[
-            self._generate_one(
-                theme_name   = "theme3",
-                version      = version,
-                filter_type  = "lifestyle_area",
-                filter_value = area,
-                prompt_kwargs= {
-                    "age":        age,
-                    "length":     n,
-                    "promptText": _chill_prompt_text(area, age, n),
-                },
-                age=age, lang=lang_code, registry=registry,
+        if run_theme3:
+            lifestyle_areas = (
+                ChillStoriesTopics().topics.get("meta", {}).get("lifestyle_areas", [])
             )
-            for area in lifestyle_areas
-        ], return_exceptions=True)
 
-        for result in t3_results:
-            if isinstance(result, list):
-                all_topics.extend(result)
+            t3_results = await asyncio.gather(*[
+                self._generate_one(
+                    theme_name   = "theme3",
+                    version      = version,
+                    filter_type  = "lifestyle_area",
+                    filter_value = area,
+                    prompt_kwargs= {
+                        "age":        age,
+                        "length":     n,
+                        "promptText": _chill_prompt_text(area, age, n),
+                    },
+                    age=age, lang=lang_code, registry=registry,
+                )
+                for area in lifestyle_areas
+            ], return_exceptions=True)
+
+            for result in t3_results:
+                if isinstance(result, list):
+                    all_topics.extend(result)
 
         logger.info(f"[TopicsCreator] Total topics collected: {len(all_topics)}")
 
@@ -329,6 +359,7 @@ class TopicsCreatorAgent:
                 prompt,
                 model_override=settings.STORY_TOPICS_MODEL,
                 fallback_override=settings.STORY_TOPICS_FALLBACK_MODEL,
+                use_cache=False,
             )
         except Exception as e:
             logger.error(f"[TopicsCreator] LLM failed for {theme_name}/{filter_value}: {e}")

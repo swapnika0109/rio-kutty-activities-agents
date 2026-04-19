@@ -101,18 +101,26 @@ async def self_correct_story_node(state: StoryCreatorState, config: RunnableConf
 
 
 async def save_story_node(state: StoryCreatorState, config: RunnableConfig) -> dict:
-    cfg = config.get("configurable", {})
-    story_id  = cfg.get("story_id")
-    topics_id = cfg.get("topics_id")
-    story     = state.get("story", {})
+    cfg           = config.get("configurable", {})
+    story_id      = cfg.get("story_id")
+    topics_id     = cfg.get("topics_id")
+    story         = state.get("story", {})
+    selected_topic = state.get("selected_topic") or {}
     # Theme from config (batch flow) or from the selected topic (manual /select-topic flow)
     theme = (
         cfg.get("theme")
-        or state.get("selected_topic", {}).get("theme", "theme1")
+        or selected_topic.get("theme", "theme1")
     )
+    topic_id          = selected_topic.get("topic_id")
+    topic_document_id = selected_topic.get("topic_document_id")
 
     try:
-        await firestore.save_story(story_id, story, theme, topics_id=topics_id)
+        await firestore.save_story(
+            story_id, story, theme,
+            topics_id=topics_id,
+            topic_id=topic_id,
+            topic_document_id=topic_document_id,
+        )
         logger.info(f"[WF2] Story saved: {theme}/{story_id} '{story.get('title')}'")
         return {"completed": ["story"]}
     except Exception as e:
