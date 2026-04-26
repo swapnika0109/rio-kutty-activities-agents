@@ -306,26 +306,35 @@ class TopicsCreatorAgent:
             else:
                 religions_to_run = all_religions
 
-            t2_results = await asyncio.gather(*[
-                self._generate_one(
-                    theme_name   = "theme2",
-                    version      = version,
-                    filter_type  = "religion",
-                    filter_value = rel,
-                    prompt_kwargs= {
-                        "age":        age,
-                        "length":     n,
-                        "promptText": _mindful_prompt_text(rel, n),
-                        "religion":   rel,
-                    },
-                    age=age, lang=lang_code, registry=registry,
-                )
-                for rel in religions_to_run
-            ], return_exceptions=True)
+            # Build (religion, preference) pairs — one slot each, sequential
+            # so global dedup via existing_titles works correctly.
+            t2_prefs: list[str]
+            if isinstance(preferences, list) and preferences:
+                t2_prefs = [p.lower().strip() for p in preferences if p.lower().strip() not in {"any", ""}]
+            else:
+                t2_prefs = []
+            if not t2_prefs:
+                t2_prefs = ["any"]
 
-            for result in t2_results:
-                if isinstance(result, list):
-                    all_topics.extend(result)
+            for rel in religions_to_run:
+                for slot_idx, pref in enumerate(t2_prefs):
+                    filter_value = rel if pref == "any" else f"{rel}__{pref}"
+                    result = await self._generate_one(
+                        theme_name   = "theme2",
+                        version      = version,
+                        filter_type  = "religion_preference",
+                        filter_value = filter_value,
+                        prompt_kwargs= {
+                            "age":        age,
+                            "length":     n,
+                            "promptText": _mindful_prompt_text(rel, n),
+                            "religion":   rel,
+                            "preference": pref,
+                        },
+                        age=age, lang=lang_code, registry=registry,
+                    )
+                    if isinstance(result, list):
+                        all_topics.extend(result)
 
         # ------------------------------------------------------------------
         # Theme 3 — ChillStories, one slot per requested preference.
