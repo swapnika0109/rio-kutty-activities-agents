@@ -17,10 +17,10 @@
 
 **Purpose**: Create the `tests/e2e/` directory structure, pytest configuration, output artifact directories, and gitignore entries. No implementation logic yet.
 
-- [ ] T001 Create `tests/e2e/` directory with `__init__.py` and `tests/e2e/helpers/__init__.py`
-- [ ] T002 Create `test/images/`, `test/audio/`, and `test/reports/` output directories with `.gitkeep`
-- [ ] T003 Add `test/images/`, `test/audio/` to `.gitignore` (keep `test/reports/` tracked)
-- [ ] T004 Add `e2e` and `slow` pytest markers and `asyncio_mode = auto` to `pytest.ini` (or `pyproject.toml`)
+- [x] T001 Create `tests/e2e/` directory with `__init__.py` and `tests/e2e/helpers/__init__.py`
+- [x] T002 Create `test/images/`, `test/audio/`, and `test/reports/` output directories with `.gitkeep`
+- [x] T003 Add `test/images/`, `test/audio/` to `.gitignore` (keep `test/reports/` tracked)
+- [x] T004 Add `e2e` and `slow` pytest markers and `asyncio_mode = auto` to `pytest.ini` (or `pyproject.toml`)
 
 ---
 
@@ -30,12 +30,12 @@
 
 **⚠️ CRITICAL**: No E2E test can run until this phase is complete.
 
-- [ ] T005 Implement `tests/e2e/helpers/firestore_helper.py` — async helpers to assert Firestore doc structure (field presence, types, values) and bulk-delete docs from `{theme}_topics`, `{theme}_stories`, `activities_v1`, `workflow_checkpoints` in the `rio-test` database
-- [ ] T006 [P] Implement `tests/e2e/helpers/storage_helper.py` — helpers to delete all GCS blobs under `test/images/` and `test/audio/` prefixes in `kutty_bucket`
-- [ ] T007 [P] Implement `tests/e2e/helpers/pubsub_helper.py` — helper to assert that a Pub/Sub message was published to the configured `HUMAN_LOOP_NOTIFICATION_TOPIC` (pull-based assertion with timeout)
-- [ ] T008 [P] Implement `tests/e2e/helpers/api_helper.py` — async HTTP client wrapper around `httpx.AsyncClient` for `POST /resume-workflow` and `GET /workflow-status/{story_id}`
-- [ ] T009 [P] Implement `tests/e2e/helpers/report_writer.py` — pytest plugin that hooks `pytest_runtest_logreport` and `pytest_sessionfinish` to write `test/reports/run_{YYYYMMDD_HHMMSS}.json` with the schema defined in `research.md §5`
-- [ ] T010 Implement `tests/e2e/conftest.py` — session-scoped `settings_override` fixture (`FIRESTORE_DATABASE=rio-test`, `TEST_STORAGE_PREFIX=test`), session-scoped `firestore_test_client` (`AsyncClient(project="riokutty", database="rio-test")`), function-scoped `cleanup_firestore` and `cleanup_storage` autouse fixtures, session-scoped `report_writer` registration, and `retry_limit` fixture reading `settings.PARALLEL_WORKFLOW_MAX_RETRIES`
+- [x] T005 Implement `tests/e2e/helpers/firestore_helper.py` — async helpers to assert Firestore doc structure (field presence, types, values) and bulk-delete docs from `{theme}_topics`, `{theme}_stories`, `activities_v1`, `workflow_checkpoints` in the `rio-test` database
+- [x] T006 [P] Implement `tests/e2e/helpers/storage_helper.py` — helpers to delete all GCS blobs under `test/images/` and `test/audio/` prefixes in `kutty_bucket`
+- [x] T007 [P] Implement `tests/e2e/helpers/pubsub_helper.py` — helper to assert that a Pub/Sub message was published to the configured `HUMAN_LOOP_NOTIFICATION_TOPIC` (pull-based assertion with timeout)
+- [x] T008 [P] Implement `tests/e2e/helpers/api_helper.py` — async HTTP client wrapper around `httpx.AsyncClient` for `POST /resume-workflow` and `GET /workflow-status/{story_id}`
+- [x] T009 [P] Implement `tests/e2e/helpers/report_writer.py` — pytest plugin that hooks `pytest_runtest_logreport` and `pytest_sessionfinish` to write `test/reports/run_{YYYYMMDD_HHMMSS}.json` with the schema defined in `research.md §5`
+- [x] T010 Implement `tests/e2e/conftest.py` — session-scoped `settings_override` fixture (`FIRESTORE_DATABASE=rio-test`, `TEST_STORAGE_PREFIX=test`), session-scoped `firestore_test_client` (`AsyncClient(project="riokutty", database="rio-test")`), function-scoped `cleanup_firestore` and `cleanup_storage` autouse fixtures, session-scoped `report_writer` registration, and `retry_limit` fixture reading `settings.PARALLEL_WORKFLOW_MAX_RETRIES`
 
 **Checkpoint**: All helpers and conftest ready — E2E tests can now be written and run.
 
@@ -47,12 +47,12 @@
 
 **Independent Test**: `FIRESTORE_DATABASE=rio-test pytest tests/e2e/test_pipeline_happy_path.py -m e2e -v`
 
-- [ ] T011 [US1] Implement `tests/e2e/test_wf1_topics.py` — `test_wf1_happy_path[planet_protectors/mindful/chill]` (parametrized): submit theme to WF1, assert `{theme}_topics` doc exists in `rio-test` with valid `topics_id` and non-empty `topics` array; cleanup via `cleanup_firestore`
-- [ ] T012 [P] [US1] Implement `tests/e2e/test_wf2_story.py` — `test_wf2_story_persisted[planet_protectors/mindful/chill]`: given a `topics_id`, run WF2, assert `{theme}_stories` doc has `title`, `description`, `moral`, `topics_id` as doc ID; cleanup via `cleanup_firestore`
-- [ ] T013 [P] [US1] Implement `tests/e2e/test_wf3_image.py` — `test_wf3_image_generated[planet_protectors/mindful/chill]`: run WF3, assert `image_url` on story doc starts with `gs://kutty_bucket/test/images/`; assert blob exists in GCS; cleanup via `cleanup_storage`
-- [ ] T014 [P] [US1] Implement `tests/e2e/test_wf4_audio.py` — `test_wf4_audio_generated[planet_protectors/mindful/chill]`: run WF4, assert `audio_url` on story doc starts with `gs://kutty_bucket/test/audio/`; assert blob exists in GCS; cleanup via `cleanup_storage`
-- [ ] T015 [P] [US1] Implement `tests/e2e/test_wf5_activities.py` (happy path section) — `test_wf5_activities_generated[planet_protectors/mindful/chill]`: run WF5, assert 4 activity docs exist in `activities_v1` tagged with `story_id`, one per type (`mcq`, `art`, `science`, `moral`); assert `activity_image_url` present for art/science/moral activities (starts with `gs://kutty_bucket/test/images/`); cleanup via `cleanup_firestore` + `cleanup_storage`
-- [ ] T016 [US1] Implement `tests/e2e/test_pipeline_happy_path.py` — `test_full_pipeline[planet_protectors/mindful/chill]` (parametrized, marked `@pytest.mark.slow`): run WF1→select topic→WF2→parallel WF3+WF4→WF5 end-to-end; assert all fields on story doc and all 4 activities; assert total duration < 300 seconds (5 min); cleanup all created resources
+- [x] T011 [US1] Implement `tests/e2e/test_wf1_topics.py` — `test_wf1_happy_path[planet_protectors/mindful/chill]` (parametrized): submit theme to WF1, assert `{theme}_topics` doc exists in `rio-test` with valid `topics_id` and non-empty `topics` array; cleanup via `cleanup_firestore`
+- [x] T012 [P] [US1] Implement `tests/e2e/test_wf2_story.py` — `test_wf2_story_persisted[planet_protectors/mindful/chill]`: given a `topics_id`, run WF2, assert `{theme}_stories` doc has `title`, `description`, `moral`, `topics_id` as doc ID; cleanup via `cleanup_firestore`
+- [x] T013 [P] [US1] Implement `tests/e2e/test_wf3_image.py` — `test_wf3_image_generated[planet_protectors/mindful/chill]`: run WF3, assert `image_url` on story doc starts with `gs://kutty_bucket/test/images/`; assert blob exists in GCS; cleanup via `cleanup_storage`
+- [x] T014 [P] [US1] Implement `tests/e2e/test_wf4_audio.py` — `test_wf4_audio_generated[planet_protectors/mindful/chill]`: run WF4, assert `audio_url` on story doc starts with `gs://kutty_bucket/test/audio/`; assert blob exists in GCS; cleanup via `cleanup_storage`
+- [x] T015 [P] [US1] Implement `tests/e2e/test_wf5_activities.py` (happy path section) — `test_wf5_activities_generated[planet_protectors/mindful/chill]`: run WF5, assert 4 activity docs exist in `activities_v1` tagged with `story_id`, one per type (`mcq`, `art`, `science`, `moral`); assert `activity_image_url` present for art/science/moral activities (starts with `gs://kutty_bucket/test/images/`); cleanup via `cleanup_firestore` + `cleanup_storage`
+- [x] T016 [US1] Implement `tests/e2e/test_pipeline_happy_path.py` — `test_full_pipeline[planet_protectors/mindful/chill]` (parametrized, marked `@pytest.mark.slow`): run WF1→select topic→WF2→parallel WF3+WF4→WF5 end-to-end; assert all fields on story doc and all 4 activities; assert total duration < 300 seconds (5 min); cleanup all created resources
 
 **Checkpoint**: Full happy path passing for all 3 themes — User Story 1 complete.
 
@@ -64,8 +64,8 @@
 
 **Independent Test**: `FIRESTORE_DATABASE=rio-test pytest tests/e2e/test_wf1_topics.py::TestDeduplication -m e2e -v`
 
-- [ ] T017 [US2] Implement deduplication tests in `tests/e2e/test_wf1_topics.py` (new `TestDeduplication` class) — `test_wf1_no_duplicate_titles[planet_protectors/mindful/chill]`: call WF1 twice for same theme; collect both `topics` arrays; assert no title string appears in both; cleanup both topic docs
-- [ ] T018 [P] [US2] Implement caching tests in `tests/e2e/test_wf1_topics.py` — `test_wf1_topics_cached_in_firestore[planet_protectors/mindful/chill]`: after WF1 call, assert `{theme}_topics` doc exists with `topics_id` and `topics` array; call WF1 again; assert second call reads from existing doc (no new LLM call — verify by checking doc `created_at` unchanged); cleanup
+- [x] T017 [US2] Implement deduplication tests in `tests/e2e/test_wf1_topics.py` (new `TestDeduplication` class) — `test_wf1_no_duplicate_titles[planet_protectors/mindful/chill]`: call WF1 twice for same theme; collect both `topics` arrays; assert no title string appears in both; cleanup both topic docs
+- [x] T018 [P] [US2] Implement caching tests in `tests/e2e/test_wf1_topics.py` — `test_wf1_topics_cached_in_firestore[planet_protectors/mindful/chill]`: after WF1 call, assert `{theme}_topics` doc exists with `topics_id` and `topics` array; call WF1 again; assert second call reads from existing doc (no new LLM call — verify by checking doc `created_at` unchanged); cleanup
 
 **Checkpoint**: Deduplication and caching verified for all 3 themes — User Story 2 complete.
 
@@ -77,10 +77,10 @@
 
 **Independent Test**: `FIRESTORE_DATABASE=rio-test pytest tests/e2e/test_pipeline_retry_hitl.py -m e2e -v`
 
-- [ ] T019 [US3] Implement `tests/e2e/test_pipeline_retry_hitl.py` — `test_wf3_retry_exhaustion_triggers_interrupt`: patch `AIService.generate_image` to always raise; run pipeline; assert retry counter reaches `retry_limit` fixture value; assert Pub/Sub notification published (via `pubsub_helper`); assert workflow checkpoint exists in `rio-test`; assert `GET /workflow-status` returns `"interrupted"`
-- [ ] T020 [P] [US3] Add `test_wf4_retry_exhaustion_triggers_interrupt` in `tests/e2e/test_pipeline_retry_hitl.py` — same pattern as T019 but patches `AIService.generate_audio`
-- [ ] T021 [US3] Add `test_resume_skip_decision` in `tests/e2e/test_pipeline_retry_hitl.py` — after interrupt (WF3 mock), POST `{"decision": "skip"}` to `/resume-workflow`; assert pipeline continues; assert story doc has no `image_url`; assert checkpoint deleted; assert `GET /workflow-status` returns `"completed"`
-- [ ] T022 [P] [US3] Add `test_resume_retry_decision` in `tests/e2e/test_pipeline_retry_hitl.py` — after interrupt (WF3 mock), restore real `AIService.generate_image`, POST `{"decision": "retry"}`; assert WF3 attempts again; assert `image_url` populated if retry succeeds
+- [x] T019 [US3] Implement `tests/e2e/test_pipeline_retry_hitl.py` — `test_wf3_retry_exhaustion_triggers_interrupt`: patch `AIService.generate_image` to always raise; run pipeline; assert retry counter reaches `retry_limit` fixture value; assert Pub/Sub notification published (via `pubsub_helper`); assert workflow checkpoint exists in `rio-test`; assert `GET /workflow-status` returns `"interrupted"`
+- [x] T020 [P] [US3] Add `test_wf4_retry_exhaustion_triggers_interrupt` in `tests/e2e/test_pipeline_retry_hitl.py` — same pattern as T019 but patches `AIService.generate_audio`
+- [x] T021 [US3] Add `test_resume_skip_decision` in `tests/e2e/test_pipeline_retry_hitl.py` — after interrupt (WF3 mock), POST `{"decision": "skip"}` to `/resume-workflow`; assert pipeline continues; assert story doc has no `image_url`; assert checkpoint deleted; assert `GET /workflow-status` returns `"completed"`
+- [x] T022 [P] [US3] Add `test_resume_retry_decision` in `tests/e2e/test_pipeline_retry_hitl.py` — after interrupt (WF3 mock), restore real `AIService.generate_image`, POST `{"decision": "retry"}`; assert WF3 attempts again; assert `image_url` populated if retry succeeds
 
 **Checkpoint**: Full retry + interrupt + resume paths verified — User Story 3 complete.
 
@@ -92,11 +92,11 @@
 
 **Independent Test**: `FIRESTORE_DATABASE=rio-test pytest tests/e2e/test_wf5_activities.py -m e2e -v`
 
-- [ ] T023 [US4] Implement DeepEval GEval tests in `tests/e2e/test_wf5_activities.py` (new `TestDeepEval` class) — `test_mcq_geval_score_above_threshold`: run WF5 for a fixed story; retrieve MCQ activity from `rio-test`; evaluate with `GEval(criteria="...", threshold=0.7, model="gemini/gemini-2.0-flash-lite")`; assert score >= 0.7; cleanup
-- [ ] T024 [P] [US4] Add `test_art_activity_geval_score_above_threshold` in `tests/e2e/test_wf5_activities.py` — same as T023 for art activity; also assert `activity_image_url` present and GCS blob exists; cleanup
-- [ ] T025 [P] [US4] Add `test_science_activity_geval_score_above_threshold` in `tests/e2e/test_wf5_activities.py` — same pattern for science activity; assert `activity_image_url` present; cleanup
-- [ ] T026 [P] [US4] Add `test_moral_activity_geval_score_above_threshold` in `tests/e2e/test_wf5_activities.py` — same pattern for moral activity; assert `activity_image_url` present; cleanup
-- [ ] T027 [US4] Add `test_wf5_retries_on_low_geval_score` in `tests/e2e/test_wf5_activities.py` — patch GEval to return score 0.5 on first call, 0.8 on retry; run WF5; assert activity doc has final score >= 0.7; assert retry count > 1 in workflow state; cleanup
+- [x] T023 [US4] Implement DeepEval GEval tests in `tests/e2e/test_wf5_activities.py` (new `TestDeepEval` class) — `test_mcq_geval_score_above_threshold`: run WF5 for a fixed story; retrieve MCQ activity from `rio-test`; evaluate with `GEval(criteria="...", threshold=0.7, model="gemini/gemini-2.0-flash-lite")`; assert score >= 0.7; cleanup
+- [x] T024 [P] [US4] Add `test_art_activity_geval_score_above_threshold` in `tests/e2e/test_wf5_activities.py` — same as T023 for art activity; also assert `activity_image_url` present and GCS blob exists; cleanup
+- [x] T025 [P] [US4] Add `test_science_activity_geval_score_above_threshold` in `tests/e2e/test_wf5_activities.py` — same pattern for science activity; assert `activity_image_url` present; cleanup
+- [x] T026 [P] [US4] Add `test_moral_activity_geval_score_above_threshold` in `tests/e2e/test_wf5_activities.py` — same pattern for moral activity; assert `activity_image_url` present; cleanup
+- [x] T027 [US4] Add `test_wf5_retries_on_low_geval_score` in `tests/e2e/test_wf5_activities.py` — patch GEval to return score 0.5 on first call, 0.8 on retry; run WF5; assert activity doc has final score >= 0.7; assert retry count > 1 in workflow state; cleanup
 
 **Checkpoint**: All activity types pass DeepEval quality gate — User Story 4 complete.
 
@@ -108,16 +108,16 @@
 
 **Independent Test**: `FIRESTORE_DATABASE=rio-test pytest tests/e2e/test_pipeline_edge_cases.py -m e2e -v`
 
-- [ ] T028 [P] Implement `tests/e2e/test_pipeline_edge_cases.py` — `test_invalid_theme_rejected`: submit unsupported theme (e.g., `"dragons"`); assert pipeline raises or returns a clear error; assert no Firestore docs created
-- [ ] T029 [P] Add `test_firestore_unavailable_on_story_save`: patch `FirestoreService.save_story` to raise; run WF2; assert error is surfaced clearly (not swallowed); assert checkpoint exists for recovery
-- [ ] T030 [P] Add `test_both_wf3_wf4_fail_simultaneously`: patch both `generate_image` and `generate_audio` to always raise; exhaust retries on both; assert two Pub/Sub notifications published; assert workflow interrupted; resume with `skip` for both; assert pipeline completes without image or audio
-- [ ] T031 [P] Add `test_malformed_ai_json_response`: patch `AIService.generate_content` to return `"not valid json {{{"`; run WF2; assert error is raised with a parse failure message; assert no corrupt doc saved to Firestore
-- [ ] T032 [P] Add `test_resume_workflow_unknown_story_id`: POST to `/resume-workflow` with `story_id="nonexistent-id"`; assert 404 or clear error response
-- [ ] T033 [P] Add `test_resume_workflow_already_completed`: complete a full pipeline; then POST to `/resume-workflow` for the same story_id; assert idempotent response (no crash, no duplicate processing)
-- [ ] T034 [P] Add `test_wf1_empty_topic_list`: patch WF1 to return empty `topics` array; assert pipeline raises or returns a clear empty-topics error; assert no story doc created
-- [ ] T035 [P] Add `test_duplicate_story_scenario`: run WF2 for the same `topics_id` twice; assert second run is idempotent (existing story doc unchanged, no duplicate created — per constitution §VIII)
-- [ ] T036 [P] Add `test_pubsub_publish_fails_during_interrupt`: patch `pubsub_v1.PublisherClient.publish` to raise; exhaust WF3 retries; assert error is surfaced (not silently swallowed); assert workflow does not continue silently
-- [ ] T037 [P] Add `test_audio_upload_to_gcs_fails`: patch `StorageBucketService.upload_file` to raise for audio only; run WF4; assert retry triggered; after retries exhausted, assert interrupt/Pub/Sub path followed
+- [x] T028 [P] Implement `tests/e2e/test_pipeline_edge_cases.py` — `test_invalid_theme_rejected`: submit unsupported theme (e.g., `"dragons"`); assert pipeline raises or returns a clear error; assert no Firestore docs created
+- [x] T029 [P] Add `test_firestore_unavailable_on_story_save`: patch `FirestoreService.save_story` to raise; run WF2; assert error is surfaced clearly (not swallowed); assert checkpoint exists for recovery
+- [x] T030 [P] Add `test_both_wf3_wf4_fail_simultaneously`: patch both `generate_image` and `generate_audio` to always raise; exhaust retries on both; assert two Pub/Sub notifications published; assert workflow interrupted; resume with `skip` for both; assert pipeline completes without image or audio
+- [x] T031 [P] Add `test_malformed_ai_json_response`: patch `AIService.generate_content` to return `"not valid json {{{"`; run WF2; assert error is raised with a parse failure message; assert no corrupt doc saved to Firestore
+- [x] T032 [P] Add `test_resume_workflow_unknown_story_id`: POST to `/resume-workflow` with `story_id="nonexistent-id"`; assert 404 or clear error response
+- [x] T033 [P] Add `test_resume_workflow_already_completed`: complete a full pipeline; then POST to `/resume-workflow` for the same story_id; assert idempotent response (no crash, no duplicate processing)
+- [x] T034 [P] Add `test_wf1_empty_topic_list`: patch WF1 to return empty `topics` array; assert pipeline raises or returns a clear empty-topics error; assert no story doc created
+- [x] T035 [P] Add `test_duplicate_story_scenario`: run WF2 for the same `topics_id` twice; assert second run is idempotent (existing story doc unchanged, no duplicate created — per constitution §VIII)
+- [x] T036 [P] Add `test_pubsub_publish_fails_during_interrupt`: patch `pubsub_v1.PublisherClient.publish` to raise; exhaust WF3 retries; assert error is surfaced (not silently swallowed); assert workflow does not continue silently
+- [x] T037 [P] Add `test_audio_upload_to_gcs_fails`: patch `StorageBucketService.upload_file` to raise for audio only; run WF4; assert retry triggered; after retries exhausted, assert interrupt/Pub/Sub path followed
 
 **Checkpoint**: All 10 edge cases covered with deterministic outcomes.
 
@@ -127,11 +127,11 @@
 
 **Purpose**: Parallel execution validation, cleanup verification, and CI configuration.
 
-- [ ] T038 Add `test_wf3_wf4_run_in_parallel` in `tests/e2e/test_pipeline_happy_path.py` — record `start_time`; run full pipeline; record individual WF3/WF4 completion timestamps from state; assert `total_elapsed < wf3_duration + wf4_duration` (proves `asyncio.gather`, not serial)
-- [ ] T039 [P] Add `test_firestore_cleanup_verified` in `tests/e2e/test_pipeline_happy_path.py` — run full pipeline; teardown; assert `{theme}_stories`, `{theme}_topics`, `activities_v1`, `workflow_checkpoints` contain no docs created during this test run
-- [ ] T040 [P] Add `test_gcs_cleanup_verified` in `tests/e2e/test_pipeline_happy_path.py` — run full pipeline; teardown; assert no blobs exist under `test/images/` or `test/audio/` created during this test run
-- [ ] T041 [P] Add `test_json_report_written` in `tests/e2e/test_pipeline_happy_path.py` — after a test session, assert `test/reports/run_*.json` exists, is valid JSON, has required fields (`run_id`, `timestamp`, `results`, `summary`), and `summary.total > 0`
-- [ ] T042 Add GitHub Actions CI workflow at `.github/workflows/e2e.yml` — triggers on push to `001-e2e-test-suite` branch; sets `FIRESTORE_DATABASE=rio-test`, `GOOGLE_API_KEY`, `HF_TOKEN` from secrets; runs `pytest tests/e2e/ -m e2e --timeout=300`; uploads `test/reports/` as CI artifact
+- [x] T038 Add `test_wf3_wf4_run_in_parallel` in `tests/e2e/test_pipeline_happy_path.py` — record `start_time`; run full pipeline; record individual WF3/WF4 completion timestamps from state; assert `total_elapsed < wf3_duration + wf4_duration` (proves `asyncio.gather`, not serial)
+- [x] T039 [P] Add `test_firestore_cleanup_verified` in `tests/e2e/test_pipeline_happy_path.py` — run full pipeline; teardown; assert `{theme}_stories`, `{theme}_topics`, `activities_v1`, `workflow_checkpoints` contain no docs created during this test run
+- [x] T040 [P] Add `test_gcs_cleanup_verified` in `tests/e2e/test_pipeline_happy_path.py` — run full pipeline; teardown; assert no blobs exist under `test/images/` or `test/audio/` created during this test run
+- [x] T041 [P] Add `test_json_report_written` in `tests/e2e/test_pipeline_happy_path.py` — after a test session, assert `test/reports/run_*.json` exists, is valid JSON, has required fields (`run_id`, `timestamp`, `results`, `summary`), and `summary.total > 0`
+- [x] T042 Add GitHub Actions CI workflow at `.github/workflows/e2e.yml` — triggers on push to `001-e2e-test-suite` branch; sets `FIRESTORE_DATABASE=rio-test`, `GOOGLE_API_KEY`, `HF_TOKEN` from secrets; runs `pytest tests/e2e/ -m e2e --timeout=300`; uploads `test/reports/` as CI artifact
 
 ---
 
