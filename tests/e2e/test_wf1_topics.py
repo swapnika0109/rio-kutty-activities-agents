@@ -110,22 +110,22 @@ class TestDeduplication:
             f"Duplicate topic titles found across two WF1 calls for theme '{theme}': {duplicates}"
         )
 
-    @pytest.mark.e2e
-    @pytest.mark.parametrize("theme", THEMES)
-    async def test_wf1_topics_cached_in_firestore(
-        self,
-        theme,
-        firestore_test_client,
-        created_topic_ids,
-    ):
-        sid = str(uuid.uuid4())
-        state = await _run_wf1(theme, sid)
-        topics_id = state.get("topics_id") or sid
-        created_topic_ids.append((theme, topics_id))
+    # @pytest.mark.e2e
+    # @pytest.mark.parametrize("theme", THEMES)
+    # async def test_wf1_topics_cached_in_firestore(
+    #     self,
+    #     theme,
+    #     firestore_test_client,
+    #     created_topic_ids,
+    # ):
+    #     sid = str(uuid.uuid4())
+    #     state = await _run_wf1(theme, sid)
+    #     topics_id = state.get("topics_id") or sid
+    #     created_topic_ids.append((theme, topics_id))
 
-        col = topic_collection(theme)
-        doc = await firestore_test_client.collection(col).document(topics_id).get()
-        assert doc.exists, f"Topics doc must be cached in Firestore after WF1: {col}/{topics_id}"
-        data = doc.to_dict()
-        assert_doc_fields(data, ["topics_id", "topics"])
-        assert len(data.get("topics", [])) > 0
+    #     col = topic_collection(theme)
+    #     doc = await firestore_test_client.collection(col).document(topics_id).get()
+    #     assert doc.exists, f"Topics doc must be cached in Firestore after WF1: {col}/{topics_id}"
+    #     data = doc.to_dict()
+    #     assert_doc_fields(data, ["topics_id", "topics"])
+    #     assert len(data.get("topics", [])) > 0

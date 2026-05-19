@@ -2,9 +2,14 @@
 E2E test fixtures for the rio-kutty story pipeline.
 
 Fixture chain:
-  session: settings_override → firestore_test_client, storage_bucket, retry_limit
+  session: test_bucket, retry_limit
+  function: firestore_test_client (per-test to keep gRPC channels loop-aligned)
   function (autouse): cleanup_firestore, cleanup_storage
   session: report_writer plugin registration
+
+Tests run against the `(default)` Firestore database — the same one workflows
+write to. Cleanup only deletes IDs each test tracks in its own `created_*_ids`
+list, so pre-existing data is never touched.
 """
 
 from __future__ import annotations
@@ -27,34 +32,45 @@ pytest_plugins = ["tests.e2e.helpers.report_writer"]
 
 
 # ---------------------------------------------------------------------------
-# Session-scoped: override settings to point at rio-test database
+# Tests run against the same `(default)` database the workflows write to, so
+# they can read what was just produced. Cleanup fixtures only delete docs
+# whose IDs were appended during the test (per-test tracking lists), so
+# pre-existing data in `(default)` is not touched.
 # ---------------------------------------------------------------------------
 
-@pytest.fixture(scope="session", autouse=True)
-def settings_override():
-    """Force all Firestore writes to the `rio-test` named database and use test storage prefix."""
-    os.environ.setdefault("FIRESTORE_DATABASE", "rio-test")
-    os.environ.setdefault("TEST_STORAGE_PREFIX", "test")
-    yield
-    # env vars are process-scoped; no teardown needed for CI runs
+@pytest.fixture
+async def firestore_test_client():
+    """Async Firestore client connected to the `(default)` database — same one the workflows use.
 
-
-# ---------------------------------------------------------------------------
-# Session-scoped: Firestore async client targeting rio-test
-# ---------------------------------------------------------------------------
-
-@pytest.fixture(scope="session")
-def firestore_test_client(settings_override):
-    """Async Firestore client connected to the `rio-test` named database."""
+    Function-scoped (not session-scoped) because pytest-asyncio creates a fresh
+    event loop per test. A session-scoped AsyncClient holds gRPC channels bound
+    to the first test's loop; reusing it in later tests triggers
+    `AttributeError: 'InterceptedUnaryUnaryCall' object has no attribute
+    '_interceptors_task'` from grpc.aio's GC when those loops close. Per-test
+    clients cost ~0.5s of setup but make the gRPC lifecycle clean."""
     project = os.environ.get("GOOGLE_CLOUD_PROJECT", "riokutty")
     credentials_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
     if credentials_path:
         client = _firestore.AsyncClient.from_service_account_json(
-            credentials_path, project=project, database="rio-test"
+            credentials_path, project=project, database="(default)"
         )
     else:
-        client = _firestore.AsyncClient(project=project, database="rio-test")
-    return client
+        client = _firestore.AsyncClient(project=project, database="(default)")
+    try:
+        yield client
+    finally:
+        # Close the transport on the same loop it was opened on, before
+        # pytest-asyncio tears the loop down. Suppresses the grpc.aio
+        # `_interceptors_task` AttributeError from GC against a closed loop.
+        close = getattr(client, "close", None)
+        if close is not None:
+            try:
+                result = close()
+                import asyncio
+                if asyncio.iscoroutine(result):
+                    await result
+            except Exception:
+                pass
 
 
 # ---------------------------------------------------------------------------
@@ -62,7 +78,7 @@ def firestore_test_client(settings_override):
 # ---------------------------------------------------------------------------
 
 @pytest.fixture(scope="session")
-def test_bucket(settings_override):
+def test_bucket():
     """GCS bucket handle for kutty_bucket."""
     return get_test_bucket()
 
@@ -72,7 +88,7 @@ def test_bucket(settings_override):
 # ---------------------------------------------------------------------------
 
 @pytest.fixture(scope="session")
-def retry_limit(settings_override):
+def retry_limit():
     """Returns the configured PARALLEL_WORKFLOW_MAX_RETRIES (default 4)."""
     from src.utils.config import get_settings
     return get_settings().PARALLEL_WORKFLOW_MAX_RETRIES

@@ -1,6 +1,6 @@
 """
 Firestore assertion and cleanup helpers for E2E tests.
-All operations target the `rio-test` named database.
+All operations target the `(default)` database — the same one workflows write to.
 """
 
 from __future__ import annotations
