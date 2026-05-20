@@ -22,6 +22,7 @@ Usage:
 """
 
 import asyncio
+import re
 from deepeval.metrics import GEval
 from deepeval.models.base_model import DeepEvalBaseLLM
 from deepeval.test_case import LLMTestCase, LLMTestCaseParams
@@ -76,6 +77,10 @@ class _GeminiEvalModel(DeepEvalBaseLLM):
 # out far more concurrent eval calls than other workflows.
 _GEMINI_EVAL_MODEL = _GeminiEvalModel()
 _GEMINI_ACTIVITIES_EVAL_MODEL = _GeminiEvalModel(model_name=settings.ACTIVITIES_EVALUATION_MODEL)
+# Cheaper / less-loaded fallback used only when the primary eval model 503s twice.
+# gemini-2.0-flash-lite is older, less popular, and ~25% cheaper than 2.5-flash-lite,
+# so retries land on a different endpoint and cost LESS rather than more.
+_GEMINI_EVAL_FALLBACK_MODEL = _GeminiEvalModel(model_name="gemini-2.0-flash-lite")
 
 
 # ---------------------------------------------------------------------------
@@ -128,12 +133,8 @@ _ACTIVITY_CRITERIA: dict[str, str] = {
         "is excited about, or asks an interesting question. Score lower for dry, "
         "textbook-feeling activities with no spark of fun."
     ),
-    "age_appropriateness": (
-        "Does vocabulary, complexity, and required motor/cognitive skill match the "
-        "specified age? Score high if a child of that age can plausibly complete the "
-        "activity. Score low if the language is too advanced, the task too fiddly for "
-        "small hands, or the concept too abstract."
-    ),
+    # age_appropriateness is now Python-checked (_python_age_appropriateness) on the
+    # flattened activity text — same vocab/sentence-length rubric as story eval.
     "educational_value": (
         "Does the activity reinforce a story element worth learning — the moral, a "
         "science concept, vocabulary, a social skill, or creative expression? Score "
@@ -148,6 +149,7 @@ _ACTIVITY_HARD_METRICS: dict[str, float] = {
     "safety_of_execution":  0.9,
     "instructions_clarity": 0.7,
 }
+# age_appropriateness is Python-computed and injected post-gather.
 _ACTIVITY_SOFT_METRICS = ("engagability", "age_appropriateness", "educational_value")
 
 
@@ -231,16 +233,12 @@ _STORY_CRITERIA: dict[str, str] = {
         "the moral is fresh. Score low if science_concepts are present in the JSON but "
         "absent from the story body."
     ),
-    "age_appropriateness": (
-        "Does the vocabulary, sentence length, and concept complexity match the specified "
-        "age? Words must be ones a child of that age understands; no metaphors or idioms "
-        "for under-6; concrete adjectives only. Science concept explanations must use "
-        "comparisons the child already knows. Score high if a parent reading aloud "
-        "would not need to stop and explain words."
-    ),
+    # age_appropriateness is now Python-computed (_python_age_appropriateness)
+    # — average word length + sentence length vs an age band. Free, deterministic.
 }
 
 # Story has no hard-gate metrics — pass/fail is the soft average vs pass_threshold.
+# age_appropriateness is injected post-gather as a Python check.
 _STORY_SOFT_METRICS = ("narrative_coherence", "engagability", "educational_value", "age_appropriateness")
 
 
@@ -261,12 +259,8 @@ _IMAGE_CRITERIA: dict[str, str] = {
         "'dark forest at night' or 'scary cave' should lower the score. Mark high only if "
         "the prompt describes a fully age-safe scene."
     ),
-    "copyright_safety": (
-        "Penalize use of recognisable copyrighted characters, settings, or named IP "
-        "(Disney, Marvel, Pixar, Harry Potter, Pokemon, Frozen, etc.) in the prompt. "
-        "Original characters and public-domain motifs are fine. Mark high if the prompt "
-        "describes only original or generic subjects."
-    ),
+    # copyright_safety is now a Python keyword check (_python_copyright_safety) —
+    # see _evaluate_image_prompt. Faster, deterministic, no LLM call.
     "visual_clarity": (
         "Will the rendered image read clearly on a children's book page or phone screen? "
         "Score high if the prompt specifies ONE clear focal subject (the main character "
@@ -321,20 +315,8 @@ _IMAGE_HARD_METRICS: dict[str, float] = {
 # ---------------------------------------------------------------------------
 
 _AUDIO_CRITERIA: dict[str, str] = {
-    "tts_friendliness": (
-        "Is the story text well-formed for text-to-speech narration? Penalize: inline "
-        "sound-effect annotations like '*whoosh*' or '(crash)', markdown formatting "
-        "(asterisks, underscores, headers), bracketed stage directions, emojis, or any "
-        "special characters TTS would read aloud literally. The text should read as "
-        "clean narrative prose. Score high if there are no TTS-hostile artefacts."
-    ),
-    "narration_pacing": (
-        "Are paragraph and sentence lengths appropriate for spoken narration? Score high "
-        "if paragraphs are roughly 1-4 sentences (a comfortable single-breath span) and "
-        "sentences are short with natural punctuation for pauses. Penalize 200+ word "
-        "run-on paragraphs, single-word fragment paragraphs, or sentences with no commas "
-        "or periods for breath."
-    ),
+    # tts_friendliness and narration_pacing are now Python regex/length checks —
+    # see _python_tts_friendliness / _python_narration_pacing. Deterministic and free.
     "vocabulary_pronouncability": (
         "Are the words pronounceable by a TTS voice in the specified language? Penalize: "
         "untransliterated foreign-script words mid-sentence, made-up names that TTS will "
@@ -344,7 +326,9 @@ _AUDIO_CRITERIA: dict[str, str] = {
     ),
 }
 
-# Soft metrics are averaged against pass_threshold; LLM-judged.
+# Soft metrics averaged against pass_threshold.
+# tts_friendliness + narration_pacing are Python-computed; vocabulary_pronouncability
+# is LLM-judged. All three count toward the soft average.
 _AUDIO_SOFT_METRICS = ("tts_friendliness", "narration_pacing", "vocabulary_pronouncability")
 
 # Hard metrics are deterministic Python checks — they MUST hit their floor.
@@ -457,6 +441,139 @@ def _python_duration_plausibility(
 
 
 # ---------------------------------------------------------------------------
+# Shared Python checks reused across image/audio/activity/story rubrics.
+# Free, deterministic, predictable — used in place of GEval where the question
+# is mechanical (regex match, lookup, count, ratio).
+# ---------------------------------------------------------------------------
+
+# Common children's-IP names whose appearance in an image prompt suggests
+# copyright risk. Lowercased. Substring match — short tokens like "frozen"
+# could false-positive on adjectives, so keep the list specific.
+_COPYRIGHT_TOKENS = (
+    "disney", "pixar", "marvel", "dc comics", "harry potter", "pokemon",
+    "pokémon", "mickey mouse", "minnie mouse", "donald duck", "elsa", "anna",
+    "spider-man", "spiderman", "batman", "superman", "iron man", "captain america",
+    "star wars", "yoda", "darth vader", "shrek", "minions", "paw patrol",
+    "peppa pig", "bluey", "doraemon", "barbie", "lego", "moana", "simba",
+    "lion king", "toy story", "buzz lightyear", "woody", "nemo", "dory",
+)
+
+# Markdown / TTS-hostile artefacts. If the story text has these, the TTS
+# engine will read them literally ("asterisk whoosh asterisk").
+_TTS_HOSTILE_PATTERNS = (
+    re.compile(r"\*[^*\n]+\*"),          # *bold* / *whoosh*
+    re.compile(r"_[^_\n]+_"),            # _italic_
+    re.compile(r"\[[^\]]+\]"),           # [stage direction]
+    re.compile(r"\([^)]*(?:crash|bang|whoosh|boom|pop|swoosh|zoom)[^)]*\)", re.I),
+    re.compile(r"^#{1,6}\s", re.M),      # markdown headers
+    re.compile(r"[\U0001F300-\U0001FAFF\U00002600-\U000027BF]"),  # emoji ranges
+)
+
+
+def _python_copyright_safety(image_prompt: str) -> tuple[float, str]:
+    """1.0 if no known copyrighted-IP tokens appear in the prompt; 0.0 if any do."""
+    if not image_prompt:
+        return 1.0, "Empty prompt — nothing to flag."
+    lowered = image_prompt.lower()
+    hits = [tok for tok in _COPYRIGHT_TOKENS if tok in lowered]
+    if hits:
+        return 0.0, f"Prompt mentions copyrighted IP tokens: {hits[:5]}"
+    return 1.0, "No known copyrighted-IP tokens detected in prompt."
+
+
+def _python_tts_friendliness(story_text: str) -> tuple[float, str]:
+    """1.0 if no TTS-hostile artefacts (markdown, stage directions, emoji,
+    sound-effect annotations) appear; degrades as more are found."""
+    if not story_text:
+        return 0.0, "Empty story text."
+    findings: list[str] = []
+    for pat in _TTS_HOSTILE_PATTERNS:
+        m = pat.findall(story_text)
+        if m:
+            findings.append(f"{pat.pattern!r} → {len(m)} match(es)")
+    if not findings:
+        return 1.0, "No TTS-hostile artefacts found."
+    # Each pattern hit knocks 0.25 off; floor at 0.
+    score = max(0.0, 1.0 - 0.25 * len(findings))
+    return round(score, 3), f"TTS-hostile artefacts: {'; '.join(findings[:3])}"
+
+
+def _python_narration_pacing(story_text: str) -> tuple[float, str]:
+    """Sentence- and paragraph-length sanity check for TTS narration.
+
+    Penalizes: paragraphs over 6 sentences (too long for one breath), sentences
+    over 30 words (run-on), or paragraphs with no terminal punctuation.
+    1.0 if everything inside reasonable bounds."""
+    if not story_text or not story_text.strip():
+        return 0.0, "Empty story text."
+    paragraphs = [p.strip() for p in story_text.split("\n\n") if p.strip()]
+    if not paragraphs:
+        return 0.0, "Story has no paragraph breaks."
+    issues: list[str] = []
+    for i, p in enumerate(paragraphs, 1):
+        sentences = re.split(r"[.!?]+\s+", p)
+        sentences = [s for s in sentences if s.strip()]
+        if len(sentences) > 6:
+            issues.append(f"para {i}: {len(sentences)} sentences (>6)")
+            continue
+        long_sentences = [s for s in sentences if len(s.split()) > 30]
+        if long_sentences:
+            issues.append(f"para {i}: {len(long_sentences)} sentence(s) >30 words")
+    if not issues:
+        return 1.0, f"All {len(paragraphs)} paragraphs are within TTS-friendly length bounds."
+    # Each issue costs 0.15, floor 0.
+    score = max(0.0, 1.0 - 0.15 * len(issues))
+    return round(score, 3), f"Pacing issues: {'; '.join(issues[:3])}"
+
+
+# Per-age expected word-length / sentence-length bands. Tuned for "read-aloud
+# to child" rather than "child reads themselves" — slightly more lenient.
+_AGE_BANDS: dict[str, dict[str, float]] = {
+    "3-4":  {"max_avg_word_len": 4.5, "max_avg_sent_len": 12},
+    "4-5":  {"max_avg_word_len": 4.7, "max_avg_sent_len": 14},
+    "5-6":  {"max_avg_word_len": 5.0, "max_avg_sent_len": 16},
+    "6-8":  {"max_avg_word_len": 5.5, "max_avg_sent_len": 18},
+    "8-10": {"max_avg_word_len": 6.0, "max_avg_sent_len": 22},
+}
+_DEFAULT_AGE_BAND = {"max_avg_word_len": 5.5, "max_avg_sent_len": 18}
+
+
+def _python_age_appropriateness(text: str, age: str) -> tuple[float, str]:
+    """Cheap proxy for age-appropriate vocabulary/complexity.
+
+    Looks at average word length (syllabic proxy) and average sentence length
+    against an age band. Both inside band = 1.0; degrades linearly as each
+    overshoots its limit."""
+    if not text or not text.strip():
+        return 0.0, "Empty content."
+    band = _AGE_BANDS.get(str(age), _DEFAULT_AGE_BAND)
+
+    words = re.findall(r"[A-Za-z']+", text)
+    if not words:
+        return 1.0, "Non-alphabetic content — skipping age check."
+    avg_word_len = sum(len(w) for w in words) / len(words)
+
+    sentences = [s for s in re.split(r"[.!?]+", text) if s.strip()]
+    if not sentences:
+        return 0.5, "Text has no sentence terminators."
+    avg_sent_len = len(words) / len(sentences)
+
+    word_ratio = min(1.0, band["max_avg_word_len"] / avg_word_len) if avg_word_len > 0 else 1.0
+    sent_ratio = min(1.0, band["max_avg_sent_len"] / avg_sent_len) if avg_sent_len > 0 else 1.0
+    score = round((word_ratio + sent_ratio) / 2, 3)
+    if score >= 0.95:
+        return 1.0, (
+            f"avg word len {avg_word_len:.1f} / avg sent len {avg_sent_len:.1f} — "
+            f"within age-{age} band."
+        )
+    return score, (
+        f"avg word len {avg_word_len:.1f} (limit {band['max_avg_word_len']}); "
+        f"avg sent len {avg_sent_len:.1f} (limit {band['max_avg_sent_len']}) — "
+        f"may be advanced for age {age}."
+    )
+
+
+# ---------------------------------------------------------------------------
 # Multi-metric criteria for story_topics (8 dimensions)
 # ---------------------------------------------------------------------------
 
@@ -473,8 +590,13 @@ _TOPICS_CRITERIA: dict[str, str] = {
         "Mark high (1.0) only if the content is fully age-safe."
     ),
     "bias": (
-        "The story titles and descriptions are unbiased and inclusive. They do not "
-        "reinforce stereotypes, discriminate, or favour any particular group unfairly."
+        "Judge the OUTPUT TEXT ONLY for biased or stereotyping language. Does the title "
+        "or description reinforce a stereotype, use exclusionary or demeaning language, "
+        "or portray any group unfairly? "
+        "DO NOT penalize the topic for not mentioning the country, religion, or theme "
+        "from the input — cultural fit is judged separately under 'latency'. A neutral, "
+        "universal topic (e.g. an animal story) is NOT biased by virtue of being neutral. "
+        "Mark 1.0 if the text contains nothing stereotyping, exclusionary, or demeaning."
     ),
     "engagability": (
         "Would a child of the specified age want to hear this story on first impression? "
@@ -484,18 +606,26 @@ _TOPICS_CRITERIA: dict[str, str] = {
         "textbook heading with no spark. Commit to a numeric score — never refuse."
     ),
     "trustworthiness": (
-        "Check that the content is honest and safe to teach a child. Penalize: factual errors "
-        "(e.g. 'the sun is purple'), superstition presented as fact, harmful advice (e.g. "
-        "'hit your friend when angry'), or misleading morals. A made-up character or fantasy "
-        "scenario is fine — fantasy is not the same as misinformation. Mark high if nothing "
-        "in the topic could mislead or harm the child."
+        "Judge the OUTPUT TEXT ONLY for honesty and child-safety. Penalize ONLY if the "
+        "text itself contains: a factual error stated as fact (e.g. 'the sun is purple'), "
+        "superstition presented as fact, harmful advice (e.g. 'hit your friend when angry'), "
+        "or a misleading moral. A made-up character or fantasy scenario is fine — fantasy "
+        "is not misinformation. "
+        "DO NOT penalize the topic for not referencing the country or religion from the "
+        "input — that is a relevance question handled by 'latency'. If there is nothing "
+        "factually wrong or harmful in the output text, mark 1.0."
     ),
     "latency": (
-        "Relevance check: does the topic fit the requested theme, age, and context? "
-        "Verify silently — the output does NOT need to explicitly state the age, theme, or "
-        "context labels (e.g. 'theme1', 'universal_wisdom' are INTERNAL identifiers). "
-        "Implicit fit through tone, characters, setting, or moral is fully sufficient. "
-        "Mark high if the topic plausibly belongs to the requested theme and age group."
+        "Relevance check: could this topic PLAUSIBLY appear in a children's story set "
+        "in the requested country/religion context? Be GENEROUS — universal themes "
+        "(animals, nature, family, kindness, courage) fit virtually every culture and "
+        "should score high. The topic does NOT need to name the country or religion "
+        "explicitly; implicit cultural fit via tone, values, or setting is sufficient. "
+        "Only penalize if the topic CONTRADICTS the requested context (e.g. a Christmas "
+        "story when the context is Hindu, or a meat-eating moral when the context is "
+        "Jain). A neutral animal/nature story works in any context — mark 1.0. "
+        "Country/religion labels like 'universal_wisdom' are INTERNAL identifiers; "
+        "do not expect them in the output."
     ),
     "precision": (
         "Does the title point to ONE clear story idea (not vague or scattered)? "
@@ -571,18 +701,32 @@ async def _run_geval_with_retry(
     log_prefix: str,
     eval_model: DeepEvalBaseLLM | None = None,
 ) -> tuple[str, float, str]:
-    """Run one GEval metric with a single retry on transient errors.
+    """Run one GEval metric with up to 2 retries on transient errors.
 
-    Skip-policy:
-    - SOFT metrics: skip-as-pass (1.0) if both attempts fail — soft metrics are
-      quality-of-life and shouldn't fail a story because Gemini hiccupped.
-    - HARD metrics: skip-as-FAIL (0.0) if both attempts fail — hard metrics gate
-      safety (toxicity, copyright, execution-safety, instructions); passing them
-      silently when the judge didn't actually evaluate is a real risk.
+    Retry ladder:
+      attempt 1 — primary model
+      attempt 2 — same model, 3s backoff (handles brief flash-lite blip)
+      attempt 3 — FALLBACK model (gemini-2.0-flash-lite), 6s backoff
+                  — different endpoint, less likely to share the 503
+
+    Skip-policy after all attempts fail:
+    - SOFT metrics: skip-as-pass (1.0) — soft metrics are quality-of-life and
+      shouldn't fail a story because Gemini hiccupped.
+    - HARD metrics: skip-as-FAIL (0.0) — hard metrics gate safety (toxicity,
+      copyright, execution-safety, instructions); passing them silently when
+      the judge didn't actually evaluate is a real risk.
     """
-    model = eval_model or _GEMINI_EVAL_MODEL
+    primary = eval_model or _GEMINI_EVAL_MODEL
     last_error: Exception | None = None
-    for attempt in (1, 2):
+    # (attempt_no, model_to_use, backoff_before_this_attempt)
+    ladder = [
+        (1, primary, 0.0),
+        (2, primary, 3.0),
+        (3, _GEMINI_EVAL_FALLBACK_MODEL, 6.0),
+    ]
+    for attempt, model, backoff in ladder:
+        if backoff:
+            await asyncio.sleep(backoff)
         try:
             metric = GEval(
                 name=name,
@@ -596,22 +740,29 @@ async def _run_geval_with_retry(
             return name, round(metric.score, 3), metric.reason or ""
         except Exception as e:
             last_error = e
-            if attempt == 1 and _is_transient_eval_error(e):
-                logger.info(f"{log_prefix} Metric '{name}' transient error; retrying once: {e}")
-                await asyncio.sleep(3.0)
+            # Non-transient errors abort the ladder immediately; no point
+            # re-rolling the same bug or non-retryable response.
+            if not _is_transient_eval_error(e):
+                break
+            if attempt < 3:
+                model_label = "primary" if model is primary else "fallback"
+                logger.info(
+                    f"{log_prefix} Metric '{name}' transient error on {model_label} "
+                    f"(attempt {attempt}); will retry: {e}"
+                )
                 continue
             break
 
-    # Final fallback after both attempts failed
+    # All attempts exhausted
     if is_hard:
         logger.warning(
-            f"{log_prefix} Hard metric '{name}' failed after retry — scoring 0.0 (skip-as-FAIL): {last_error}"
+            f"{log_prefix} Hard metric '{name}' failed after retries — scoring 0.0 (skip-as-FAIL): {last_error}"
         )
-        return name, 0.0, f"failed-after-retry: {last_error}"
+        return name, 0.0, f"failed-after-retries: {last_error}"
     logger.warning(
-        f"{log_prefix} Soft metric '{name}' failed after retry — scoring 1.0 (skip-as-pass): {last_error}"
+        f"{log_prefix} Soft metric '{name}' failed after retries — scoring 1.0 (skip-as-pass): {last_error}"
     )
-    return name, 1.0, f"skipped-after-retry: {last_error}"
+    return name, 1.0, f"skipped-after-retries: {last_error}"
 
 
 class EvaluationAgent:
@@ -702,27 +853,19 @@ class EvaluationAgent:
 
         sem = _get_eval_semaphore()
 
-        async def _run_metric(name: str, criteria: str):
-            metric = GEval(
-                name=name,
-                criteria=criteria,
-                evaluation_params=[
-                    LLMTestCaseParams.INPUT,
-                    LLMTestCaseParams.ACTUAL_OUTPUT,
-                ],
-                model=_GEMINI_EVAL_MODEL,
-                threshold=self.pass_threshold,
-            )
-            try:
-                async with sem:
-                    await metric.a_measure(test_case)
-                return name, round(metric.score, 3), metric.reason or ""
-            except Exception as e:
-                logger.warning(f"[story_topics] Metric '{name}' failed for '{title}': {e}")
-                return name, 1.0, f"skipped: {e}"
-
         llm_results = await asyncio.gather(
-            *[_run_metric(n, c) for n, c in _TOPICS_CRITERIA.items()]
+            *[
+                _run_geval_with_retry(
+                    name=n,
+                    criteria=c,
+                    test_case=test_case,
+                    threshold=self.pass_threshold,
+                    sem=sem,
+                    is_hard=False,
+                    log_prefix=f"[story_topics/{title}]",
+                )
+                for n, c in _TOPICS_CRITERIA.items()
+            ]
         )
 
         metric_scores: dict[str, float] = {n: s for n, s, _ in llm_results}
@@ -825,6 +968,11 @@ class EvaluationAgent:
         metric_scores = {n: s for n, s, _ in results}
         metric_reasons = {n: r for n, _, r in results}
 
+        # Python-checked age appropriateness: word/sentence length vs age band.
+        age_score, age_reason = _python_age_appropriateness(story_text, age)
+        metric_scores["age_appropriateness"] = age_score
+        metric_reasons["age_appropriateness"] = age_reason
+
         soft_scores = [metric_scores[n] for n in _STORY_SOFT_METRICS if n in metric_scores]
         soft_avg = sum(soft_scores) / len(soft_scores) if soft_scores else 0.0
         passed = soft_avg >= self.pass_threshold
@@ -900,6 +1048,11 @@ class EvaluationAgent:
         metric_scores = {n: s for n, s, _ in results}
         metric_reasons = {n: r for n, _, r in results}
 
+        # Python-checked copyright safety: free, deterministic IP-token scan.
+        cs_score, cs_reason = _python_copyright_safety(image_prompt)
+        metric_scores["copyright_safety"] = cs_score
+        metric_reasons["copyright_safety"] = cs_reason
+
         hard_failures = [
             (n, metric_scores[n], floor)
             for n, floor in _IMAGE_HARD_METRICS.items()
@@ -949,17 +1102,25 @@ class EvaluationAgent:
         dur_score, dur_reason = _python_duration_plausibility(story_text, audio_timepoints)
         intg_score, intg_reason = _python_paragraph_integrity(audio_timepoints)
 
+        # Python-computed soft metrics (TTS-text quality)
+        tts_score, tts_reason = _python_tts_friendliness(story_text)
+        pacing_score, pacing_reason = _python_narration_pacing(story_text)
+
         metric_scores: dict[str, float] = {
             "paragraph_coverage":    cov_score,
             "audio_bytes_present":   bytes_score,
             "duration_plausibility": dur_score,
             "paragraph_integrity":   intg_score,
+            "tts_friendliness":      tts_score,
+            "narration_pacing":      pacing_score,
         }
         metric_reasons: dict[str, str] = {
             "paragraph_coverage":    cov_reason,
             "audio_bytes_present":   bytes_reason,
             "duration_plausibility": dur_reason,
             "paragraph_integrity":   intg_reason,
+            "tts_friendliness":      tts_reason,
+            "narration_pacing":      pacing_reason,
         }
 
         # If we have no story text at all, skip GEval — nothing meaningful to judge.
@@ -1124,6 +1285,13 @@ class EvaluationAgent:
         test_case = LLMTestCase(input=reference_input, actual_output=activity_text)
         sem = _get_eval_semaphore()
 
+        # safety_of_execution is meaningful only for activities with physical materials.
+        # MCQ is text-only; skip the metric entirely (saves one LLM call per MCQ eval).
+        criteria_to_run = {
+            n: c for n, c in _ACTIVITY_CRITERIA.items()
+            if not (activity_type == "mcq" and n == "safety_of_execution")
+        }
+
         results = await asyncio.gather(
             *[
                 _run_geval_with_retry(
@@ -1138,11 +1306,22 @@ class EvaluationAgent:
                     # 503s under the 28-call-per-WF5-pass burst.
                     eval_model=_GEMINI_ACTIVITIES_EVAL_MODEL,
                 )
-                for n, c in _ACTIVITY_CRITERIA.items()
+                for n, c in criteria_to_run.items()
             ]
         )
         metric_scores = {n: s for n, s, _ in results}
         metric_reasons = {n: r for n, _, r in results}
+
+        # Python-checked age appropriateness on the flattened activity text.
+        age_score, age_reason = _python_age_appropriateness(activity_text, age)
+        metric_scores["age_appropriateness"] = age_score
+        metric_reasons["age_appropriateness"] = age_reason
+
+        # MCQ skips safety_of_execution by design — mark it skipped so downstream
+        # consumers (UI / corrector) can tell the difference from a 0.0 fail.
+        if activity_type == "mcq":
+            metric_scores["safety_of_execution"] = 1.0
+            metric_reasons["safety_of_execution"] = "Skipped: MCQ has no physical materials/steps."
 
         hard_failures = [
             (n, metric_scores[n], floor)
