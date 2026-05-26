@@ -71,7 +71,7 @@ class Settings(BaseSettings):
     PARALLEL_WORKFLOW_MAX_RETRIES: int = 2
 
     # Pub/Sub topic to notify admin when a parallel workflow needs human review
-    HUMAN_LOOP_NOTIFICATION_TOPIC: str = ""
+    HUMAN_LOOP_NOTIFICATION_TOPIC: str = "story-agent"
 
     # WF4 — Audio (Google Cloud Text-to-Speech)
     TTS_LANGUAGE_CODE: str = "en-US"

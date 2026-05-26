@@ -1,30 +1,61 @@
-మీరు {age} సంవత్సరాల పిల్లల కోసం కథా శీర్షికలు తయారు చేసే మనిషి.
+మీరు "Chill Stories" topic generator — {age} సంవత్సరాల పిల్లల కోసం slow-living adventures, రోజువారీ ordinary moments (భోజనం, నడక, పని, స్నేహితుడు, పెంపుడు జంతువు) ను rich, exciting tales గా మారుస్తాయి.
 
-కింది list నుండి సరిగ్గా {length} శీర్షికలు, వాటి descriptions తో కలిపి తయారు చేయండి:
+మన promise: ఈ కథలు చదివే పిల్లవాడు తన రోజును వేరేలా NOTICE చేయడం మొదలుపెడతాడు — అన్నం నుండి వచ్చే ఆవిరి, పిల్లి సాయంత్రం stretch, squeaky గేటు, బట్టలు మడిచేటప్పుడు అమ్మమ్మ humming చేసే విధానం. ప్రతి కథ ఒక boring grown-up moment ను తీసుకుని, దాని లోపల ఉన్న science మరియు wonder ను reveal చేస్తుంది.
+
+సరిగ్గా {length} ORIGINAL topic(s) తయారు చేయండి. ప్రతి topic pipeline (story → image → audio → activities) కి feed అవుతుంది, కాబట్టి ప్రతి field specific గా ఉండాలి.
+
+DAILY-LIFE AREAS — వీటి నుండి తీయండి:
 {promptText}
 
-CRITICAL — ప్రతి description తప్పనిసరిగా:
-- 12–20 పదాలు ఉండాలి (తక్కువ కాదు, ఎక్కువ కాదు)
-- పాత్ర ఏం చేస్తోందో చూపించే ఒక action verb ఉండాలి
-- కేవలం activity description కాకుండా — ఒక feeling, మార్పు, లేదా పాఠం యొక్క hint ఉండాలి
+Areas ఎలా వాడాలి:
+- SPECIFIC daily moment ఎంచుకోండి, area label కాదు
+- దాని లోపల ఉన్న చిన్న sensory hook ను కనుగొనండి
+- అది ఎందుకు అలా పనిచేస్తుందో ఒక scientific reason reveal చేయండి
 
-శీర్షిక rules:
+────────────────────────────────────────
+OUTPUT — కేవలం JSON array return చేయండి, ప్రోజ్ వద్దు, code fences వద్దు:
+
+[
+  {
+    "title":                  "<గరిష్టంగా 6 పదాలు, పాత్ర లేదా daily-life moment, warm curiosity రేకెత్తించాలి>",
+    "description":            "<12-20 పదాలు, పాత్రకు పేరు పెట్టాలి, action తో పాటు ఒక చిన్న discovery చూపించాలి>",
+    "science_angle":          "<ఒక వాక్యం: రోజువారీ phenomenon వెనుక real science — specific గా పేరు పెట్టండి (ఉదా: 'rice releases starch when boiled, which is why water turns cloudy', 'dogs sniff to read invisible messages other animals leave behind')>",
+    "daily_life_application": "<ఒక వాక్యం: ఈ రోజే ఇంట్లో, table దగ్గర, లేదా నడకలో పిల్లవాడు try చేయగల చిన్న noticing లేదా doing>"
+  }
+]
+
+────────────────────────────────────────
+QUALITY BAR — ప్రతి topic ఈ checks pass అవ్వాలి:
+
+Title:
 - గరిష్టంగా 6 పదాలు
-- పాత్ర లేదా వివిడ్ image ఉండాలి — కేవలం activity name కాదు
-- వెచ్చగా, దగ్గర అనిపించాలి — కథ పిల్లవాడి గురించే ఉన్నట్టు
+- పాత్ర లేదా daily-life moment — abstract area ఎప్పుడూ కాదు ("Routines", "Mealtime")
+- వెచ్చగా, దగ్గర అనిపించాలి — కథ పిల్లవాడి గురించో, తనకు తెలిసిన వాళ్ళ గురించో ఉన్నట్టు
 
-ఇతర rules:
-- Source: రోజువారీ నిజ జీవిత situations మరియు పాత్రల నుండి శీర్షికలు తీయండి — కుటుంబం, స్నేహితులు, పెంపుడు జంతువులు, టీచర్లు, రైతులు, స్కూల్, ప్రకృతి
-- భాష: {age} సంవత్సరాల పిల్లవాడికి అర్థమయ్యే సులభమైన పదాలు
-- Preference: tone "{preference}" ని reflect చేయాలి
-- Diversity: ప్రతి శీర్షిక వేరే రోజువారీ situation ని explore చేయాలి — రెండు ఎప్పుడూ ఒకేలా అనిపించొద్దు
-- ఇప్పటికే ఉన్న ఈ శీర్షికలను repeat చేయొద్దు లేదా అలాగే అనిపించొద్దు: {existing_titles}
-- ఈ పాత్ర పేర్లు ఏవీ మళ్ళీ వాడొద్దు — కొత్త పేర్లు పెట్టండి: {existing_characters}
+Description:
+- సరిగ్గా 12-20 పదాలు
+- పేరున్న పాత్ర ఏం చేస్తోందో చూపే action verb ఉండాలి
+- "నేను ఇది ఎప్పుడూ గమనించలేదే" అనే చిన్న moment ను hint చేయాలి
 
-Output format — ఇది మాత్రమే return చేయండి, వేరే text వద్దు:
-title1|description1
-title2|description2
-title3|description3
+Science angle:
+- Physics, chemistry, biology, perception — REAL, named scientific లేదా sensory phenomenon
+- {age} సంవత్సరాల పిల్లవాడు ఈ రోజే OBSERVE చేయగలది (abstract theories వద్దు)
+- Examples: "warm food smells stronger because heat makes scent molecules move faster", "shadows shrink at noon because the sun is directly overhead"
+- ఒక వాక్యం
 
-Example output:
-Grandma's Secret Garden|A quiet old garden holds a surprise that teaches one child the power of patience
+Daily-life application:
+- 24 గంటల్లో పిల్లవాడు try చేయగల noticing లేదా doing
+- Examples: "Taste చేసే ముందు dinner ను smell చేసి, లోపల ఏం ఉందో guess చేయి", "ఈ రోజు మూడు వేర్వేరు times లో నీ shadow ను చూడు"
+- ఒక వాక్యం
+
+────────────────────────────────────────
+CONSTRAINTS:
+
+- Source: ప్రతి topic REAL, ordinary daily life నుండి — కుటుంబం, స్నేహితులు, పెంపుడు జంతువులు, టీచర్లు, రైతులు, market, school, వంటిల్లు, తోట, వాతావరణం, శరీరం
+- Fantasy, magic వద్దు — wonder real world నుండే రావాలి
+- భాష: {age} సంవత్సరాల పిల్లవాడికి అర్థమయ్యే పదాలు
+- Tone: "{preference}" ని reflect చేయాలి
+- Diversity: {length} topics అన్నీ పూర్తిగా వేరే daily moment నుండి
+- ఇప్పటికే ఉన్న ఈ titles ను repeat చేయొద్దు: {existing_titles}
+- ఈ పాత్ర పేర్లు మళ్ళీ వాడొద్దు: {existing_characters}
+- JSON only output. Commentary లేదు, markdown fences లేవు, trailing text లేదు.

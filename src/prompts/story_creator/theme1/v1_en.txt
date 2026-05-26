@@ -8,6 +8,19 @@ PROMPT:
 Generate a complete story package for {name}, aged {age},
 in {country}, about {topic}.
 
+AUTHORITATIVE SOURCE — every field below is fixed input from
+the topic. You MUST honour all four. Do NOT replace them
+with your own inventions:
+- Title hook: {topic}
+- Story seed: {story_seed}
+- Science angle (this is the named scientific concept the
+  child must learn — use this EXACT concept as
+  science_concepts[0].concept, do not rename or substitute):
+  {science_angle}
+- Daily-life application (the child must be able to do this
+  after reading — the story's final beat must point to it):
+  {daily_life_application}
+
 Return ONLY one valid JSON object in this exact structure:
 
 {
@@ -78,8 +91,21 @@ fear, object or lesson.
 Science: BOTH science_concepts must be SHOWN in the story —
 a character observes, asks about, or demonstrates each one
 through an action. Not stated as narration, not only in the
-science_concepts field. If the concept is buoyancy, a
-character must float and notice why.
+science_concepts field.
+- science_concepts[0].concept MUST be the science_angle
+  given above, used by that exact name (or its plain-word
+  equivalent a {age}-year-old understands).
+- A character must NAME the concept in dialogue or thought
+  at least once in the story body. Example: if the angle is
+  "buoyancy", a character says "the leaf is holding me up"
+  or "I float because…" — not "Pip went down the river".
+- If the science_angle does not appear in the story text,
+  the story has failed regardless of how charming it is.
+
+Daily-life link: The story's final beat (before or inside the
+moral) must echo the daily_life_application above — point the
+child to a small thing they can DO, NOTICE, or PROTECT today.
+Do not copy the exact wording; weave it into the closing scene.
 
 Surprise: One unexpected moment the child will remember.
 
@@ -115,12 +141,38 @@ VOCABULARY (all fields):
 - Simple concrete adjectives only
 
 SCIENCE CONCEPTS RULES:
-- Exactly 2 concepts that explain WHY or HOW 
+- Exactly 2 concepts that explain WHY or HOW
   something works in nature
+- science_concepts[0].concept MUST equal the science_angle
+  from the AUTHORITATIVE SOURCE block above (matched name,
+  or a {age}-appropriate plain-word equivalent)
 - Each explanation: 2 sentences maximum
   Sentence 1: the mechanism in simple words
   Sentence 2: familiar comparison the child knows
 - Only words a {age}-year-old understands
+
+MORAL RULES (this is the highest-judged part of the story):
+- Must reference a SPECIFIC choice, action, or discovery
+  the character made in THIS story — not a generic theme
+- Must make a parent reading along say "huh, I never
+  thought of it that way" — give them a fresh insight,
+  not a recycled lesson
+- BANNED starter phrases (do not begin the moral with any
+  of these, in any form):
+    * "even the smallest..."
+    * "no matter how big or small..."
+    * "always remember to be..."
+    * "when we are brave / kind / gentle / patient..."
+    * "the smallest things can have big adventures..."
+    * "we must always..." / "we should always..."
+- BANNED filler concepts: bravery, courage, kindness,
+  patience, gentleness — these are too generic to be the
+  CORE of the moral. They may appear, but the moral must
+  pivot on a more specific observation.
+- Good moral shape: "Kids, today from this story we have
+  learned that [specific named action from THIS story]
+  [specific surprising consequence the child can verify in
+  real life]."
 
 Example output:
 {
@@ -172,10 +224,11 @@ Example output:
     }
   ],
 
-  "moral": "Kids, today from this story we have learned 
-    that small acts of gentleness — giving rest, warmth 
-    and patience to a hurt creature — can give it back 
-    the gift of freedom"
+  "moral": "Kids, today from this story we have learned
+    that a sparrow with a hurt wing rests inside soft
+    cotton because cotton traps body warmth like a
+    miniature blanket — and that the same trick works on
+    your own cold hands when you cup them and breathe out."
 }
 
 Return ONLY the JSON. No text before or after.

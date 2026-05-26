@@ -33,6 +33,9 @@ class ScienceAgent:
             story = state.get("story_text", "")
         age = state.get("age", "3-4")
         language = state.get("language", "English")
+        science_angle = state.get("science_angle", "")
+        daily_life = state.get("daily_life_application", "")
+        story_title = state.get("story_title", "")
 
         # Load prompt from registry
         registry = get_registry()
@@ -41,7 +44,10 @@ class ScienceAgent:
             version=self.prompt_version,
             age=age,
             story=story,
-            language=language
+            language=language,
+            science_angle=science_angle,
+            daily_life_application=daily_life,
+            story_title=story_title,
         )
         prompt = _prepend_retry_feedback(prompt, state, "science")
 

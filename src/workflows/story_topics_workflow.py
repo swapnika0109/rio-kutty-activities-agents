@@ -85,7 +85,7 @@ async def generate_topics_node(state: StoryTopicsState, config: RunnableConfig) 
 async def validate_topics_node(state: StoryTopicsState, config: RunnableConfig) -> dict:
     """Structural validation: topics must be a non-empty list with required fields."""
     topics = state.get("topics")
-    required = {"title", "theme", "moral", "description"}
+    required = {"title", "theme", "moral", "description", "science_angle", "daily_life_application"}
 
     if not topics or not isinstance(topics, list) or len(topics) == 0:
         logger.warning("[WF1] Structural validation failed: empty or missing topics list")

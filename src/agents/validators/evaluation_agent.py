@@ -116,20 +116,39 @@ _ACTIVITY_CRITERIA_PER_ACTIVITY: dict[str, str] = {
         "the activity as related to the story they just heard."
     ),
     "safety_of_execution": (
-        "For physical activities (art/science/moral), is every listed material and step "
-        "safe for an unsupervised young child? Penalize: sharp objects (scissors, knives), "
-        "choking hazards (small beads, marbles for under-3), hot liquids, fire, toxic "
-        "substances, foods a child might confuse with non-food. For MCQ (text-only) "
-        "default to 1.0 unless the question itself promotes unsafe behavior. Mark high "
-        "only if a parent would be comfortable leaving the child to do this alone."
+        "For physical activities (art/science/moral), judge safety using AGE-APPROPRIATE "
+        "common sense, NOT a fixed banned-item list. Ask: 'For a child of this exact age, "
+        "with a parent supervising nearby, is every material and step reasonably safe?' "
+        "Most everyday craft tools have child-safe variants that ARE age-appropriate: "
+        "scissors mean safety scissors for under-8s, knives mean plastic kid knives or "
+        "butter knives, paint means washable non-toxic kids' paint, glue means glue "
+        "stick, needles mean blunt yarn needles. Do NOT penalize these generic terms "
+        "for a young child — assume the kid-safe variant. Do NOT require the material "
+        "name to spell out 'child-safety' or 'plastic' — that level of specificity is "
+        "not required. "
+        "PENALIZE (regardless of how worded): open flame, candles, hot liquids above "
+        "lukewarm, stoves/ovens/microwaves, electricity, batteries, strong chemicals "
+        "(bleach, ammonia, solvent-based paints, permanent markers for under-6s), "
+        "loose items small enough to swallow for under-4s, or any step demanding a "
+        "physical skill the stated age cannot perform. For older children (8+), expect "
+        "more latitude — real scissors and tools become age-appropriate. "
+        "For MCQ (text-only) default to 1.0 unless the question itself promotes unsafe "
+        "behavior. Mark high if a parent would be comfortable supervising this activity "
+        "at the stated age."
     ),
     "instructions_clarity": (
-        "Are the instructions/options/questions self-contained and unambiguous? A "
-        "non-expert parent should be able to follow them without guessing or looking "
-        "things up. For MCQ, the question must have one clearly correct answer and "
-        "distractors that are wrong but plausible. For physical activities, materials "
-        "list + steps must be complete and ordered. Mark high if there are no "
-        "ambiguities or missing pieces."
+        "Score ONLY the clarity and completeness of the activity's own instructions — "
+        "do NOT penalize for weak story alignment here (that is the 'story_alignment' "
+        "metric's job; double-counting it here is forbidden). "
+        "Ask: 'Are the instructions/options/questions self-contained and unambiguous? "
+        "Can a non-expert parent follow them without guessing or looking things up?' "
+        "For MCQ, the question must have one clearly correct answer and distractors "
+        "that are wrong but plausible. For physical activities, the materials list + "
+        "steps must be complete, ordered, and unambiguous. "
+        "Mark HIGH (0.9+) if instructions are complete and clear — even if the "
+        "activity's connection to the story is weak. Mark LOW only for actual "
+        "ambiguity, missing materials, or out-of-order steps within the activity "
+        "itself."
     ),
 }
 
@@ -962,11 +981,13 @@ class EvaluationAgent:
 
         # Python-computed deterministic metrics on the FULL topic list
         comp_score, comp_reason = _python_completeness(topics)
-        rec_score, rec_reason   = _python_recall(topics)
         metric_scores["completeness"]  = comp_score
         metric_reasons["completeness"] = comp_reason
-        metric_scores["recall"]        = rec_score
-        metric_reasons["recall"]       = rec_reason
+        # Recall (duplicate detection) only makes sense with 2+ topics
+        if len(topics) >= 2:
+            rec_score, rec_reason = _python_recall(topics)
+            metric_scores["recall"]  = rec_score
+            metric_reasons["recall"] = rec_reason
 
         avg_score = sum(metric_scores.values()) / len(metric_scores)
         passed = avg_score >= self.pass_threshold
@@ -1467,11 +1488,35 @@ class EvaluationAgent:
             }
 
         story_snippet = story_text[:400] + ("..." if len(story_text) > 400 else "")
-        reference_input = (
-            f"Children's '{activity_type}' activity for age {age}, accompanying this story.\n"
-            f"Story title: {story_title}\n"
-            f"Story opening (truncated):\n{story_snippet}"
-        )
+        reference_input_parts = [
+            f"Children's '{activity_type}' activity for age {age}, accompanying this story.",
+            f"Story title: {story_title}",
+            f"Story opening (truncated):\n{story_snippet}",
+        ]
+        # MCQ-specific context: the judge needs the full set of verifiable
+        # story facts (mcq_seeds) to score 'instructions_clarity' fairly —
+        # otherwise it complains the answers aren't derivable from the
+        # truncated opening it can see.
+        if activity_type == "mcq":
+            mcq_seeds = state.get("mcq_seeds") or []
+            science_concepts = state.get("science_concepts") or []
+            if mcq_seeds:
+                reference_input_parts.append(
+                    "VERIFIABLE STORY FACTS (use these to judge whether MCQ "
+                    "answers are correct and derivable):\n- "
+                    + "\n- ".join(str(s) for s in mcq_seeds)
+                )
+            if science_concepts:
+                concept_lines = [
+                    f"- {c.get('concept', '')}: {c.get('explanation', '')}"
+                    for c in science_concepts if isinstance(c, dict)
+                ]
+                if concept_lines:
+                    reference_input_parts.append(
+                        "SCIENCE CONCEPTS COVERED IN THE STORY:\n"
+                        + "\n".join(concept_lines)
+                    )
+        reference_input = "\n".join(reference_input_parts)
 
         test_case = LLMTestCase(input=reference_input, actual_output=activity_text)
         sem = _get_eval_semaphore()

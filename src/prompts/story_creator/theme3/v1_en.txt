@@ -6,6 +6,19 @@ Language: Use simple everyday English only.
 PROMPT:
 Generate a complete chill story package for {name}, aged {age}, in {country}, about {topic}.
 
+AUTHORITATIVE SOURCE — every field below is fixed input from
+the topic. You MUST honour all four:
+- Title hook: {topic}
+- Story seed: {story_seed}
+- Science angle (the REAL everyday-science concept the
+  child must learn — use this EXACT named concept as
+  science_concepts[0].concept, do not rename or substitute):
+  {science_angle}
+- Daily-life application (the small noticing or doing the
+  child should try in the next 24 hours — the closing scene
+  must point to it):
+  {daily_life_application}
+
 Return ONLY one valid JSON object in this exact structure:
 
 {
@@ -74,6 +87,21 @@ Climax: One active sensory moment — a small discovery, a puzzle solved, a visi
 Topic Faithfulness: Stay on the exact subject, conflict and required moral of {topic}. Never substitute a different lesson.
 
 Science: BOTH science_concepts must be SHOWN in the story — a character observes, asks about, or demonstrates each one through an action. Not stated as narration, not only in the science_concepts field.
+- science_concepts[0].concept MUST be the science_angle
+  from the AUTHORITATIVE SOURCE block above, named exactly
+  (or a plain-word equivalent a {age}-year-old understands).
+- A character must NAME or directly describe-by-effect the
+  concept in dialogue or thought at least once. If the
+  angle is "warm food smells stronger because heat makes
+  scent molecules move faster", a character must notice
+  and comment on this — not just smell food.
+- If the science_angle is absent from the story text, the
+  story has failed regardless of how warm it feels.
+
+Daily-life link: The closing scene (before or inside the
+moral) must echo the daily_life_application above — point
+the child to a tiny noticing or doing they can try in the
+next 24 hours. Weave it into action, do not lecture.
 
 Surprise: One small unexpected moment the child will remember.
 
@@ -124,10 +152,36 @@ VOCABULARY (all fields):
 
 SCIENCE CONCEPTS RULES:
 - Exactly 2 concepts drawn from the story
+- science_concepts[0].concept MUST equal the science_angle
+  from the AUTHORITATIVE SOURCE block above (matched name
+  or {age}-appropriate plain-word equivalent)
 - Each explanation: 2 sentences maximum
   Sentence 1: the mechanism in simple words
   Sentence 2: familiar comparison the child knows
 - Only words a {age}-year-old understands
+
+MORAL RULES (this is the highest-judged part of the story):
+- Must reference a SPECIFIC noticing, action, or small
+  discovery from THIS story — not a generic "slow down"
+  platitude
+- Must make a parent say "huh, I never thought of it that
+  way" — pair a concrete sensory detail with a fresh
+  insight the child can verify
+- BANNED starter phrases (do not begin with any of these):
+    * "slowing down is..."
+    * "when we slow down..."
+    * "the slowest things last..."
+    * "the world is full of..."
+    * "we should always notice..."
+    * "every day we can..."
+- BANNED filler concepts as the core lesson: slowness,
+  patience, mindfulness, noticing as abstractions. They
+  may appear, but the moral must pivot on a specific
+  named observation, not the meta-virtue itself.
+- Good moral shape: "Kids, today from this story we have
+  learned that [specific named small thing observed]
+  [specific surprising thing it tells you about how the
+  world works]."
 
 Example output:
 {
@@ -155,7 +209,7 @@ Example output:
     }
   ],
 
-  "moral": "Kids, today from this story we have learned that slowing down is not falling behind — it is how you notice everything the rushing world walks right past."
+  "moral": "Kids, today from this story we have learned that a snail leaves a shiny silver trail wherever it goes because its single foot makes its own slipper of slime to glide on — and tomorrow morning you can find that trail on your own garden leaf if you look at the underside."
 }
 
 Return ONLY the JSON. No text before or after.
