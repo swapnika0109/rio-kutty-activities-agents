@@ -24,6 +24,8 @@ class MCQAgent:
         summary = ", ".join(mcq_seeds) if mcq_seeds else state.get("story_text", "")
         age = state.get("age", "3-4")
         language = state.get("language", "English")
+        science_angle = state.get("science_angle", "")
+        story_title = state.get("story_title", "")
 
         # Load prompt from registry
         registry = get_registry()
@@ -32,7 +34,9 @@ class MCQAgent:
             version=self.prompt_version,
             age=age,
             summary=summary,
-            language=language
+            language=language,
+            science_angle=science_angle,
+            story_title=story_title,
         )
         prompt = _prepend_retry_feedback(prompt, state, "mcq")
 

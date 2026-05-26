@@ -17,6 +17,20 @@ about {topic}.
 The exact story moment to build around:
 {story_seed}
 
+AUTHORITATIVE SOURCE — every field below is fixed input
+from the topic. You MUST honour all of them:
+- Title hook: {topic}
+- Story seed (the practice or moment to retell): {story_seed}
+- Science angle (the REAL psychological / biological /
+  social science behind the practice — use this EXACT
+  named concept as science_concepts[1].concept, the
+  modern-science slot; do not rename or substitute):
+  {science_angle}
+- Daily-life application (a kid-sized re-enactment of the
+  practice the child must be able to try after reading —
+  the closing scene must point to it):
+  {daily_life_application}
+
 Return ONLY one valid JSON object in this exact structure:
 
 {
@@ -95,6 +109,23 @@ the story — a character observes, asks about, or
 demonstrates each one through an action. The wisdom
 principle AND its modern science parallel both surface
 through character beats, never as standalone narration.
+- science_concepts[1].concept (the modern-science slot)
+  MUST be the science_angle from the AUTHORITATIVE
+  SOURCE block above, named exactly (or a plain-word
+  equivalent a {age}-year-old understands).
+- A character must NAME or describe-by-effect this
+  concept in dialogue or thought at least once. If the
+  angle is "slow exhales activate the parasympathetic
+  nervous system", a character must say something like
+  "my heart slowed down when I breathed out long" — not
+  just sit quietly.
+- If the science_angle does not appear in the story text,
+  the story has failed regardless of how moving it is.
+
+Daily-life link: The closing scene (before or inside the
+moral) must echo the daily_life_application above — point
+the child to the kid-sized re-enactment of the practice
+they can try today. Weave it into action, do not lecture.
 
 Surprise: One unexpected moment the child will remember —
 a twist in the ancient story that feels both surprising 
@@ -140,16 +171,39 @@ VOCABULARY (all fields):
   simply in one phrase the first time they appear
 
 SCIENCE CONCEPTS RULES:
-- Concept 1: The wisdom principle — what the ancient 
+- Concept 1: The wisdom principle — what the ancient
   story teaches about how life or the universe works
-- Concept 2: The modern science parallel — the same 
-  truth expressed in scientific terms
+- Concept 2: The modern science parallel — MUST equal
+  the science_angle from the AUTHORITATIVE SOURCE block
+  above (matched name or {age}-appropriate plain-word
+  equivalent)
 - Each explanation: 2 sentences maximum
   Sentence 1: the mechanism in simple words
   Sentence 2: familiar comparison the child knows
-- Show how ancient wisdom and modern science arrived 
+- Show how ancient wisdom and modern science arrived
   at the same truth from different directions
 - Only words a {age}-year-old understands
+
+MORAL RULES (this is the highest-judged part of the story):
+- Must reference a SPECIFIC choice, action, or moment
+  from THIS retelling — not a generic spiritual platitude
+- Must make a parent reading along say "huh, I never
+  thought of it that way" — a fresh insight bridging the
+  ancient practice and a verifiable modern truth
+- BANNED starter phrases (do not begin with any of these):
+    * "when we have faith..."
+    * "when we are devoted..."
+    * "always trust in..."
+    * "no matter how hard life gets..."
+    * "true happiness comes from..."
+    * "we must always remember..."
+- BANNED filler concepts as the core lesson: faith,
+  devotion, surrender, sacrifice, trust. May appear as
+  flavour but cannot be the pivot.
+- Good moral shape: "Kids, today from this story we have
+  learned that [specific named practice / action from
+  THIS story] [specific bodily, mental, or social effect
+  the child can feel for themselves]."
 
 Example output:
 {

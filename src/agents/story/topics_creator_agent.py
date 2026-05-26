@@ -153,15 +153,22 @@ def _parse_pipe_response(
     2. Pipe-separated lines (prompt asks for):
        Title text|Description text
     """
-    def _make_topic(title: str, description: str) -> dict:
+    def _make_topic(
+        title: str,
+        description: str,
+        science_angle: str = "",
+        daily_life_application: str = "",
+    ) -> dict:
         return {
-            "topic_id":     str(uuid.uuid4()),
-            "title":        title.strip(),
-            "description":  description.strip(),
-            "theme":        theme,
-            "moral":        "",
-            "filter_type":  filter_type,
-            "filter_value": filter_value,
+            "topic_id":               str(uuid.uuid4()),
+            "title":                  title.strip(),
+            "description":            description.strip(),
+            "science_angle":          science_angle.strip(),
+            "daily_life_application": daily_life_application.strip(),
+            "theme":                  theme,
+            "moral":                  "",
+            "filter_type":            filter_type,
+            "filter_value":           filter_value,
         }
 
     text = response.strip()
@@ -177,23 +184,29 @@ def _parse_pipe_response(
             for item in items:
                 title = item.get("title", "").strip()
                 desc  = item.get("description", "").strip()
+                sci   = item.get("science_angle", "").strip()
+                app   = item.get("daily_life_application", "").strip()
                 if title and desc:
-                    topics.append(_make_topic(title, desc))
+                    topics.append(_make_topic(title, desc, sci, app))
             if topics:
                 return topics
         except (json.JSONDecodeError, AttributeError):
             pass  # fall through to pipe parser
 
-    # --- Fallback: pipe-separated lines ---
+    # --- Fallback: pipe-separated lines (legacy 2-field; new 4-field also supported) ---
     topics = []
     for line in text.splitlines():
         line = line.strip()
         if not line or line.startswith("#"):
             continue
         if "|" in line:
-            parts = line.split("|", 1)
-            if parts[0].strip() and parts[1].strip():
-                topics.append(_make_topic(parts[0], parts[1]))
+            parts = [p.strip() for p in line.split("|")]
+            if len(parts) >= 2 and parts[0] and parts[1]:
+                title = parts[0]
+                desc  = parts[1]
+                sci   = parts[2] if len(parts) >= 3 else ""
+                app   = parts[3] if len(parts) >= 4 else ""
+                topics.append(_make_topic(title, desc, sci, app))
     return topics
 
 
@@ -443,9 +456,9 @@ class TopicsCreatorAgent:
         # protagonist across batches. Character extraction is a cheap heuristic
         # over titles — see _extract_character_names.
         need = n - len(cached) if cached else n
-        all_existing_titles = await self.db.get_all_topic_titles(age, lang)
+        all_existing_titles = await self.db.get_all_topic_titles(age, lang, theme=theme_name)
         all_existing_characters = await self.db.get_all_topic_character_names(
-            age, lang, titles=all_existing_titles,
+            age, lang, titles=all_existing_titles, theme=theme_name,
         )
         prompt_kwargs = {
             **prompt_kwargs,
@@ -480,9 +493,10 @@ class TopicsCreatorAgent:
             return []
 
         # 5. Parse
-        new_titles = _parse_pipe_response(response, theme_name, filter_type, filter_value)
+        gen_title = _parse_pipe_response(response, theme_name, filter_type, filter_value)
+        new_titles = gen_title[:prompt_kwargs['length']]
         logger.info(f"[TopicsCreator] {theme_name}/{filter_value}: {len(new_titles)} new titles")
-
+        
         # 6. Merge with existing cached titles (dedup by title text)
         if cached:
             existing_set = {t["title"] for t in cached}

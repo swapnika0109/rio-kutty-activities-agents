@@ -151,10 +151,15 @@ def _build_activities_config(
             "age":              age,
             "language":         language,
             # Activity seeds from story JSON
-            "mcq_seeds":        story.get("mcq_seeds", []),
-            "art_seed":         story.get("art_seed", ""),
-            "science_concepts": story.get("science_concepts", []),
-            "moral":            story.get("moral", ""),
+            "mcq_seeds":              story.get("mcq_seeds", []),
+            "art_seed":               story.get("art_seed", ""),
+            "science_concepts":       story.get("science_concepts", []),
+            "moral":                  story.get("moral", ""),
+            # Topic-level fields carried through the story so activities can
+            # anchor on the same scientific and daily-life intent.
+            "science_angle":          story.get("science_angle", ""),
+            "daily_life_application": story.get("daily_life_application", ""),
+            "story_title":            story.get("title", ""),
         }
     }
 

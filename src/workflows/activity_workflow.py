@@ -56,10 +56,14 @@ def unpack_config(state: ActivityState, config: RunnableConfig):
         "age":             cfg.get("age"),
         "language":        cfg.get("language"),
         # Activity seeds — sourced from the story JSON, passed via master config
-        "mcq_seeds":       cfg.get("mcq_seeds", []),
-        "art_seed":        cfg.get("art_seed", ""),
-        "science_concepts": cfg.get("science_concepts", []),
-        "moral":           cfg.get("moral", ""),
+        "mcq_seeds":              cfg.get("mcq_seeds", []),
+        "art_seed":               cfg.get("art_seed", ""),
+        "science_concepts":       cfg.get("science_concepts", []),
+        "moral":                  cfg.get("moral", ""),
+        # Topic-level anchors carried through for activity prompts
+        "science_angle":          cfg.get("science_angle", ""),
+        "daily_life_application": cfg.get("daily_life_application", ""),
+        "story_title":            cfg.get("story_title", ""),
     }
 
 # --- Generation Nodes ---

@@ -56,6 +56,8 @@ class StoryCreatorAgent:
         topic_theme = topic.get("theme", "")
         topic_moral = topic.get("moral", "")
         topic_description = topic.get("description", "")
+        topic_science_angle = topic.get("science_angle", "")
+        topic_daily_life = topic.get("daily_life_application", "")
         filter_type = topic.get("filter_type", "")
         filter_value = topic.get("filter_value", "")
 
@@ -81,6 +83,9 @@ class StoryCreatorAgent:
             religion=religion,
             source=filter_value,   # e.g. "hindu", "christian"
             story_seed=topic_description,
+            # New fields from the enriched topic schema
+            science_angle=topic_science_angle,
+            daily_life_application=topic_daily_life,
             # Legacy kwargs (ignored if not in template)
             topic_title=topic_title,
             topic_theme=topic_theme,
@@ -103,6 +108,12 @@ class StoryCreatorAgent:
                 story["age_group"] = age
             if not story.get("language"):
                 story["language"] = language
+            # Carry the topic's enriched fields onto the story so downstream
+            # activities (science especially) can anchor on them.
+            if topic_science_angle and not story.get("science_angle"):
+                story["science_angle"] = topic_science_angle
+            if topic_daily_life and not story.get("daily_life_application"):
+                story["daily_life_application"] = topic_daily_life
             logger.info(f"[StoryCreator] Generated story: '{story.get('title', 'untitled')}'")
             return {
                 "story": story,

@@ -20,6 +20,8 @@ class ArtAgent:
         summary = state.get("art_seed") or state.get("story_text", "")
         age = state.get("age", "3-4")
         language = state.get("language", "English")
+        daily_life = state.get("daily_life_application", "")
+        story_title = state.get("story_title", "")
 
         # Load prompt from registry
         registry = get_registry()
@@ -28,7 +30,9 @@ class ArtAgent:
             version=self.prompt_version,
             age=age,
             summary=summary,
-            language=language
+            language=language,
+            daily_life_application=daily_life,
+            story_title=story_title,
         )
         prompt = _prepend_retry_feedback(prompt, state, "art")
 

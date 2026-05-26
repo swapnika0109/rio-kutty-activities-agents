@@ -368,10 +368,17 @@ class FirestoreService:
 
     @staticmethod
     def _library_doc_id(age: str, lang: str, filter_value: str) -> str:
-        """Deterministic Firestore-safe doc ID."""
+        """Deterministic Firestore-safe doc ID.
+
+        Format: '{age}__{lang}__{normalized_filter_value}'
+        Example: '3-4__en__india__fun'
+
+        Age keeps its hyphen for readability (Firestore allows hyphens in IDs).
+        Filter value is lowercased and non-alphanumeric chars collapse to '_'.
+        """
         import re
         norm = re.sub(r"[^a-z0-9]+", "_", filter_value.lower()).strip("_")
-        return f"{age.replace('-', '_')}__{lang}__{norm}"
+        return f"{age}__{lang}__{norm}"
 
     async def get_title_library_entry(
         self, theme: str, age: str, lang: str, filter_value: str
@@ -421,15 +428,24 @@ class FirestoreService:
             logger.error(f"get_title_library_entry failed: {e}")
             return None
 
-    async def get_all_topic_titles(self, age: str, lang: str) -> set[str]:
+    async def get_all_topic_titles(
+        self, age: str, lang: str, theme: str | None = None,
+    ) -> set[str]:
         """
-        Returns a set of all topic titles already stored across all theme collections
-        for the given age + language. Used globally to prevent duplicate titles.
+        Returns a set of topic titles already stored for the given age + language.
+        If `theme` is given (e.g. "theme1"), only that theme's collection is scanned;
+        otherwise all 3 theme collections are scanned. Used to prevent duplicate
+        titles within the same theme — cross-theme duplicates are allowed since
+        each theme has its own voice and audience expectation.
         """
         titles: set[str] = set()
         try:
             doc_id_prefix = self._library_doc_id(age, lang, "").rstrip("_")
-            for col in _TOPIC_COLLECTIONS.values():
+            if theme:
+                collections = [self._topic_collection(theme)]
+            else:
+                collections = list(_TOPIC_COLLECTIONS.values())
+            for col in collections:
                 docs = self.db.collection(col).list_documents()
                 for doc_ref in docs:
                     doc_id = doc_ref.id
@@ -446,6 +462,7 @@ class FirestoreService:
 
     async def get_all_topic_character_names(
         self, age: str, lang: str, titles: set[str] | None = None,
+        theme: str | None = None,
     ) -> set[str]:
         """
         Returns the set of likely character names extracted from all existing
@@ -462,7 +479,7 @@ class FirestoreService:
         call in the same request — avoids a duplicate Firestore walk.
         """
         if titles is None:
-            titles = await self.get_all_topic_titles(age, lang)
+            titles = await self.get_all_topic_titles(age, lang, theme=theme)
         return _extract_character_names(titles)
 
     async def save_title_library_entry(
