@@ -63,15 +63,8 @@ class ScienceAgent:
                 cleaned_text = response.replace("```json", "").replace("```", "").strip()
 
             science_data = json.loads(cleaned_text)
-            # Generate image and upload immediately to GCS so PNG bytes never
-            # enter LangGraph state (Firestore checkpoints cap at 1 MB).
-            image_bytes = await self.ai_service.generate_image(science_data[0].get("image_generation_prompt", ""))
-            if image_bytes:
-                filename = f"images/{uuid.uuid4()}.png"
-                await self.storage.upload_file(filename, image_bytes, content_type="image/png")
-                science_data[0]["image"] = filename
-            else:
-                science_data[0]["image"] = None
+            # Image generation is deferred to a post-evaluation node so we don't
+            # burn FLUX credits on activities that fail eval and get regenerated.
             return {
                 "activity_type": "science",
                 "activities": {**state.get("activities", {}), "science": science_data},
@@ -82,3 +75,23 @@ class ScienceAgent:
             return {
                 "errors": {**state.get("errors", {}), "science": str(e)}
             }
+
+    async def generate_image(self, state: dict):
+        """Generate + upload the science activity image. Runs only after the
+        evaluation pass succeeds, so credits aren't spent on retried items."""
+        activities = state.get("activities", {})
+        science_data = activities.get("science")
+        if not science_data:
+            return {}
+        try:
+            image_bytes = await self.ai_service.generate_image(science_data[0].get("image_generation_prompt", ""))
+            if image_bytes:
+                filename = f"images/{uuid.uuid4()}.png"
+                await self.storage.upload_file(filename, image_bytes, content_type="image/png")
+                science_data[0]["image"] = filename
+            else:
+                science_data[0]["image"] = None
+            return {"activities": {**activities, "science": science_data}}
+        except Exception as e:
+            logger.error(f"Science image generation failed: {e}")
+            return {"errors": {**state.get("errors", {}), "science": str(e)}}

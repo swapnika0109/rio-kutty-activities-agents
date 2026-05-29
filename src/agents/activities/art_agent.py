@@ -49,11 +49,24 @@ class ArtAgent:
                 else:
                     cleaned_text = response.replace("```json", "").replace("```", "").strip()
                 activity_data = json.loads(cleaned_text)
-            
-            # Generate the image and upload immediately to GCS so raw bytes never
-            # enter LangGraph state. Putting hundreds of KB of PNG bytes into state
-            # is what blows past Firestore's 1 MB checkpoint cap when multiple
-            # activities run in parallel.
+            # Image generation is deferred to a post-evaluation node so we don't
+            # burn FLUX credits on activities that fail eval and get regenerated.
+            return {
+                "activities": {**state.get("activities", {}), "art": activity_data},
+                "completed": state.get("completed", []) + ["art"]
+            }
+        except Exception as e:
+            logger.error(f"Art Agent failed: {e}")
+            return {"errors": {**state.get("errors", {}), "art": str(e)}}
+
+    async def generate_image(self, state: dict):
+        """Generate + upload the art activity image. Runs only after the
+        evaluation pass succeeds, so credits aren't spent on retried items."""
+        activities = state.get("activities", {})
+        activity_data = activities.get("art")
+        if not activity_data:
+            return {}
+        try:
             image_bytes = await self.ai_service.generate_image(activity_data.get("image_generation_prompt", ""))
             if image_bytes:
                 filename = f"images/{uuid.uuid4()}.png"
@@ -61,10 +74,7 @@ class ArtAgent:
                 activity_data["image"] = filename
             else:
                 activity_data["image"] = None
-            return {
-                "activities": {**state.get("activities", {}), "art": activity_data},
-                "completed": state.get("completed", []) + ["art"]
-            }
+            return {"activities": {**activities, "art": activity_data}}
         except Exception as e:
-            logger.error(f"Art Agent failed: {e}")
+            logger.error(f"Art image generation failed: {e}")
             return {"errors": {**state.get("errors", {}), "art": str(e)}}

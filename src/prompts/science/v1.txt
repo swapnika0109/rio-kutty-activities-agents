@@ -91,6 +91,20 @@ DESIGN PROCESS (think through before writing JSON):
    can use real scissors, sharper tools, mild chemistry,
    small parts. Use the {age} input to decide.
 
+   COMMON KID-SAFE SUBSTITUTIONS — adult science demos often
+   use small/sharp items by default. For young children,
+   substitute with the kid-safe equivalent:
+   - For surface-tension or floating demos: use a small
+     folded paper square, a dry leaf, a piece of plastic
+     straw cut short, or a small bit of cork — NOT pins,
+     needles, paper clips, or sewing items.
+   - For "mixing" or "spreading": use a plastic spoon —
+     NOT a knife.
+   - For "cutting": use pre-cut shapes, or have a parent
+     cut on the side — do NOT put cutting tools in step
+     for under-6s.
+   - For small parts: use child-fist-sized items.
+
    Every step must be doable by the child themselves with a
    parent supervising — not the parent actively doing the
    step.

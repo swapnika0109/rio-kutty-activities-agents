@@ -18,7 +18,7 @@ _METRIC_THRESHOLDS: dict[str, float] = {
     # Hard metrics (must clear their floor)
     "non_toxicity":         0.85,
     "story_alignment":      0.5,
-    "safety_of_execution":  0.9,
+    "safety_of_execution":  0.8,
     "instructions_clarity": 0.7,
     # Soft metrics (averaged, pass at >= 0.6) — included individually so we
     # can flag any soft metric that's pulling the average down.

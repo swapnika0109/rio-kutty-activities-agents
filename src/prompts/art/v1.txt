@@ -33,6 +33,25 @@ DESIGN PROCESS (think through before writing JSON):
 6. VISUAL — describe the FINISHED craft so an image generator
    can render it from a top-down perspective.
 
+7. ENGAGABILITY HOOKS — the craft must feel like PLAY, not
+   a school assignment. Bake in AT LEAST THREE of the
+   following, or the craft will be scored as dry/textbook:
+   - Playful title that names the character or object from
+     THIS story (e.g. "Sunny's Magic Light Wand", not
+     "Yellow Paper Craft").
+   - The finished craft has a ROLE — the child wears it,
+     waves it, points it, hides it, gifts it, or uses it
+     to "play out" a scene from the story.
+   - A surprise / reveal in the building (something that
+     pops up, lights up via reflection, makes a sound when
+     shaken, etc.) — no electronics needed.
+   - The age_appropriateness sentence sells the FUN, not
+     just the skill ("they'll love…", "kids feel proud
+     when…").
+   - A final implicit "play step" — what the child does
+     with the craft once it's finished — is mentioned in
+     either age_appropriateness or the last step.
+
 OUTPUT — return ONLY this valid JSON, no prose, no fences:
 
 {

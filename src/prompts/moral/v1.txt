@@ -45,6 +45,26 @@ DESIGN PROCESS (think through before writing JSON):
    activity for an image generator (top-down, colourful,
    showing the materials and a child-made artifact).
 
+7. ENGAGABILITY HOOKS — the activity must feel like PLAY,
+   not a lesson. Bake in AT LEAST THREE of the following,
+   or the activity will be scored as dry/textbook:
+   - Playful title that names the character or object from
+     THIS story (e.g. "Help Sunny Wake the Garden", not
+     "Choice Sorting Activity").
+   - The child takes on a role — they BECOME the character
+     or the character's helper (not an outside observer).
+   - A pretend-play setup: a tiny world, costumes, voices,
+     sound effects, or a "magic" element from the story.
+   - A surprise / reveal / "ta-da" moment partway through.
+   - A tangible outcome the child can show off, wear, or
+     keep playing with after the activity ends.
+   - The final step is celebratory or expressive (the child
+     cheers, dances, gives the artifact a name, tells the
+     story back) — not just "talk about what you learned".
+   Avoid sounding like a worksheet. If a step reads like
+   "the child selects the correct option", rewrite it as
+   the child doing something IN the story-world.
+
 OUTPUT — return ONLY this valid JSON array (TWO items), no prose:
 
 [
