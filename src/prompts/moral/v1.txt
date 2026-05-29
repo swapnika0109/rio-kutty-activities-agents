@@ -1,138 +1,57 @@
-You are a Children's Activity Designer creating role-play
-or choice-based activities that turn a story's moral into
-something a {age}-year-old can FEEL in their own body and
-choices — not just hear as a lecture.
+You design TWO role-play/choice activities for a {age}-year-old that
+let them FEEL the story's moral — not just hear it.
 
 STORY TITLE: {story_title}
-STORY MORAL (the lesson the activity must embody):
-{story}
+STORY MORAL: {story}
+DAILY-LIFE LINK: {daily_life_application}
 
-DAILY-LIFE LINK (the activity should connect to this small
-real-world action — the child can recreate the moral by
-doing the daily-life action themselves):
-{daily_life_application}
+GUIDING RULES:
+1. Both activities must tie to THIS story — name the character or
+   central object in step 1. Generic kindness/sharing activities are
+   rejected. The two activities approach the moral from DIFFERENT
+   angles (e.g. one role-play, one craft-with-choice).
+2. Each activity gives the child a CHOICE or pretend role, not just
+   instructions to follow. The child becomes the character or helps
+   them.
+3. Difficulty scales with age. 3-4 yrs: simple pick-a-card or sort.
+   5-6 yrs: small skit with two outcomes. 7-9 yrs: a scenario with
+   trade-offs the child reasons through.
+4. Instructions are crisp numbered steps — one action per step. NOT
+   storytelling prose. The steps tell the parent/child what to DO,
+   not what happens in the story.
+5. Assume kid-safe variants of common tools. Avoid open flame,
+   blades, electricity, hot liquids, choking-size items for under-4s.
 
-DESIGN PROCESS (think through before writing JSON):
-
-1. SKILL CHECK — at {age}, what can a child physically and
-   socially do? Pretend-play? Pick-a-card choice? Simple
-   sorting? Match the activity to actual ability.
-
-2. EXTRACT THE DILEMMA — find the moment in the story where
-   the main character made a CHOICE that drove the moral.
-   The activity must let the child make a parallel choice
-   in their own miniature situation.
-
-3. SPECIFICITY AUDIT — write your activity, then ask:
-   "Could this same activity be used for ANY story about
-   kindness / sharing / honesty?" If yes, rewrite.
-   The activity must require story-specific elements:
-   the character's name, the specific object/setting,
-   the specific dilemma. Pull at least 2 of these into
-   the activity steps.
-
-4. SIMULATE THE VALUE, NOT JUST THE ACTION — if the moral
-   is "courage to speak up", don't just have the child
-   shout. Set up a tiny pretend scenario where the child
-   has the OPTION to stay quiet or speak, and the activity
-   rewards the choice — not the volume.
-
-5. TWO ACTIVITIES — create EXACTLY 2 activities exploring
-   the moral from different angles. Both must be
-   story-specific. Each has 5-6 ultra-simple steps.
-
-6. VISUAL — describe the final visible result of each
-   activity for an image generator (top-down, colourful,
-   showing the materials and a child-made artifact).
-
-7. ENGAGABILITY HOOKS — the activity must feel like PLAY,
-   not a lesson. Bake in AT LEAST THREE of the following,
-   or the activity will be scored as dry/textbook:
-   - Playful title that names the character or object from
-     THIS story (e.g. "Help Sunny Wake the Garden", not
-     "Choice Sorting Activity").
-   - The child takes on a role — they BECOME the character
-     or the character's helper (not an outside observer).
-   - A pretend-play setup: a tiny world, costumes, voices,
-     sound effects, or a "magic" element from the story.
-   - A surprise / reveal / "ta-da" moment partway through.
-   - A tangible outcome the child can show off, wear, or
-     keep playing with after the activity ends.
-   - The final step is celebratory or expressive (the child
-     cheers, dances, gives the artifact a name, tells the
-     story back) — not just "talk about what you learned".
-   Avoid sounding like a worksheet. If a step reads like
-   "the child selects the correct option", rewrite it as
-   the child doing something IN the story-world.
+STYLE:
+- Title: 3-6 words, names the character or object from the story.
+- "What it Teaches": 1-2 short sentences naming the moral lesson.
+- Steps: 4-6 numbered actions. Each step is ONE action. Last step
+  is the child's choice / share / display moment.
 
 OUTPUT — return ONLY this valid JSON array (TWO items), no prose:
 
 [
   {
-    "title": "<3-6 word activity name a child finds inviting>",
-    "age_appropriateness": "<1 sentence — why a {age}-year-old can do this AND why it teaches the moral>",
-    "What it Teaches": "<1-2 sentences naming the specific moral lesson and which story-element this activity uses to teach it>",
-    "materials": ["<item 1>", "<item 2>", "<item 3-5 items, common household>"],
-    "Instructions": ["<step 1>", "<step 2>", "<step 3>", "<step 4>", "<step 5>", "<step 6 — last step often has the child reflect on or share their choice>"],
-    "image_generation_prompt": "<English only — A high-quality, top-down photo of the finished activity: child's hands and materials shown, colours and setup detailed>"
+    "title": "<3-6 word activity name with story character/object>",
+    "age_appropriateness": "<1 short sentence>",
+    "What it Teaches": "<1-2 short sentences naming the moral>",
+    "materials": ["<item 1>", "<item 2>", "<3-5 common items>"],
+    "Instructions": ["<step 1>", "<step 2>", "<step 3>", "<step 4>", "<step 5>"],
+    "image_generation_prompt": "<English only — top-down photo of the finished activity, child's hands and materials>"
   },
   {
-    "title": "<different angle — 3-6 word name>",
-    "age_appropriateness": "<1 sentence>",
-    "What it Teaches": "<1-2 sentences>",
-    "materials": ["<item 1>", "<item 2>", "<item 3-5 items>"],
+    "title": "<different-angle 3-6 word name>",
+    "age_appropriateness": "<1 short sentence>",
+    "What it Teaches": "<1-2 short sentences>",
+    "materials": ["<item 1>", "<item 2>", "<3-5 items>"],
     "Instructions": ["<step 1>", "<step 2>", "<step 3>", "<step 4>", "<step 5>"],
     "image_generation_prompt": "<English only — top-down photo>"
   }
 ]
 
-LANGUAGE RULES:
-- title, age_appropriateness, What it Teaches, materials,
-  Instructions → write in {language}
-- image_generation_prompt → English ALWAYS
-
-AGE-APPROPRIATE SAFETY — YOU are the judge of what a
-{age}-year-old can safely handle with normal parental
-supervision. For every material, ask:
-"Would a {age}-year-old, with a parent in the room, be
-safe using this for this activity?"
-
-Most kids' tools have age-appropriate variants — scissors
-become safety scissors, knives become plastic kid knives or
-butter knives, paint becomes washable non-toxic kids' paint,
-glue becomes a glue stick. Use the kid-friendly version that
-fits the age.
-
-What to AVOID for young children (use judgment for the
-specific age):
-- Open flame, candles, hot water above lukewarm
-- Electricity, batteries, sharp adult tools
-- Small loose items that fit in a mouth for under-4s
-- Tools or props requiring physical skills the child does
-  not yet have
-For older children (8+), you have more latitude.
-
-- Every step must be doable by the child themselves with a
-  parent supervising.
-- If the moral seems to need an unsafe-for-age step, INVENT
-  a safer alternative using age-appropriate tools.
-
-SENTENCE-LENGTH RULE (for age-appropriate writing):
-- Steps and "What it Teaches" must use SHORT sentences.
-- For ages 3-4: max 10 words per sentence, average ~7.
-- For ages 5-6: max 14 words per sentence, average ~10.
-- Break compound sentences into two. "Take a card and look
-  at the picture" is fine; "Take a card and look at the
-  picture which shows the friend feeling sad" is too long.
-
-HARD GATES (any → the activity has failed):
-- Activity could be used for any other story about the same
-  generic theme — must be tied to THIS story's character /
-  setting / object
-- No real CHOICE for the child (it's just an instruction
-  list, not a role-play or decision)
-- Output has fewer than 2 activities
-- Any step violates the SAFETY GATE above
+LANGUAGE: title, age_appropriateness, What it Teaches, materials,
+Instructions → write in {language}. image_generation_prompt → English.
+Sentence length: 3-4 yrs max 10 words/sentence; 5-6 yrs max 14; older
+ages may be slightly longer.
 
 Return ONLY the JSON array with EXACTLY 2 items.
-No commentary before or after.

@@ -1,15 +1,39 @@
-You are an Early Childhood Educator designing 3 multiple-choice
-questions that will make a {age}-year-old SHOUT the answer
-back at the screen.
+You write 3 multiple-choice questions a {age}-year-old will shout the
+answers to.
 
 STORY TITLE: {story_title}
-KEY STORY MOMENTS (your only allowed source material):
-{summary}
+KEY STORY MOMENTS (your only source): {summary}
+SCIENCE ANCHOR (Q2 must test this by name): {science_angle}
 
-SCIENCE ANCHOR (one question MUST test this concept by name):
-{science_angle}
+DESIGN:
+- Q1 — STORY RECALL: a vivid moment from the key moments.
+- Q2 — SCIENCE ANCHOR: tests the anchor concept BY NAME, in age-
+  appropriate words. Wrong options are plausible misconceptions.
+- Q3 — FEELING / CHOICE: what the character felt or decided at the
+  turning point.
 
-OUTPUT — return ONLY a valid JSON array, no prose, no fences:
+QUESTION RULES:
+- One short sentence each, 6-12 words.
+- Start with What / Why / Who / Where / How / Which — not "Did".
+- Use the character's actual name.
+- {age}-appropriate vocabulary only.
+- Difficulty scales with age: literal for 3-4 yrs, inference for
+  5-6, reasoning/cause for 7-9.
+
+OPTIONS RULES:
+- Exactly 3 options per question.
+- Each option is a complete short answer (2-7 words).
+- Wrong options are PLAUSIBLE (things a child might believe),
+  not jokes or obvious nonsense.
+- All 3 options are roughly the same length.
+- The "correct" field is the EXACT text of the correct option.
+- Never use "A"/"B"/"C" or "option 1" labels.
+
+FUN_FACT: one short sentence (≤12 words) the parent can say after
+the answer. For Q2, extend the science anchor with one surprising
+detail.
+
+OUTPUT — return ONLY this valid JSON array, no prose, no fences:
 
 [
   {"question": "...", "options": ["...", "...", "..."], "correct": "...", "fun_fact": "..."},
@@ -17,56 +41,7 @@ OUTPUT — return ONLY a valid JSON array, no prose, no fences:
   {"question": "...", "options": ["...", "...", "..."], "correct": "...", "fun_fact": "..."}
 ]
 
-THREE-QUESTION DESIGN (in this exact order):
+LANGUAGE: all text in {language}. For Telugu, keep proper nouns and
+hard science terms in English where Telugu would confuse a child.
 
-Q1 — STORY RECALL: a moment a child who loved the story
-will instantly remember. Pick a vivid action or detail from
-the key moments above.
-
-Q2 — SCIENCE ANCHOR: must test the SCIENCE ANCHOR by name.
-The correct option must contain the concept word/phrase from
-the anchor, in {age}-appropriate language. The wrong options
-must be plausible misconceptions a child this age would have
-— not nonsense.
-
-Q3 — CHARACTER FEELING / CHOICE: what the main character
-felt or decided at the turning point. Tests emotional
-comprehension, not facts.
-
-QUESTION RULES:
-- Each question is one short sentence, 6-12 words
-- Begin with What, Why, Who, Where, How, or Which — not "Did"
-- Refer to the character by name from the story (no "the main
-  character" — use the actual name)
-- {age}-year-old vocabulary only — no abstract words
-- The correct answer MUST be derivable from the KEY STORY
-  MOMENTS above. Do not write a question that requires
-  knowing parts of the story not listed in the moments —
-  if a moment isn't mentioned, you cannot quiz on it.
-
-OPTIONS RULES (these are the most important rules):
-- Exactly 3 options per question
-- NEVER use placeholder labels like "A", "B", "C", "option 1"
-- Each option is a complete short answer (2-7 words)
-- Wrong options must be PLAUSIBLE — things a child might
-  actually believe — not jokes or obvious nonsense
-- All 3 options must be the same approximate length so the
-  longest one isn't an obvious correct
-- The "correct" field must contain the EXACT text of the
-  correct option, character-for-character (not a letter,
-  not an index)
-
-FUN_FACT RULE:
-- One short sentence (max 12 words) the parent can say after
-  the child answers — adds a "huh, really?" beat
-- For Q2 (science), this is where the science anchor gets a
-  second mention — extend it with a tiny surprising detail
-
-OUTPUT LANGUAGE: {language}
-- All question text, options, and fun_facts in {language}
-- For Telugu: keep proper nouns and difficult science terms
-  in English where the Telugu word would confuse a child
-- Use simple everyday {language} only — no formal/literary
-  register
-
-Return ONLY the JSON array. No commentary before or after.
+Return ONLY the JSON array.
