@@ -138,18 +138,49 @@ class StoryCreatorAgent:
             try:
                 data = json.loads(sanitized)
             except json.JSONDecodeError:
-                start = sanitized.find("{")
-                end = sanitized.rfind("}")
-                if start != -1 and end != -1:
-                    data = json.loads(sanitized[start : end + 1])
-                else:
+                # Model sometimes returns two JSON objects back-to-back ("Extra
+                # data" error). Extract only the FIRST complete top-level object
+                # by walking forward from the first `{` and tracking brace depth
+                # while respecting string boundaries.
+                first_obj = self._extract_first_json_object(sanitized)
+                if first_obj is None:
                     raise ValueError(f"Could not parse story from response: {response[:200]}")
+                data = json.loads(first_obj)
 
         # Prompts use "story" key; normalise to "story_text" expected by the rest of the pipeline
         if "story" in data and "story_text" not in data:
             data["story_text"] = data.pop("story")
 
         return data
+
+    @staticmethod
+    def _extract_first_json_object(s: str) -> str | None:
+        """Return the substring covering the first complete top-level JSON
+        object in `s`, or None if no balanced object is found. Tracks string
+        boundaries so braces inside strings don't throw off the depth count."""
+        start = s.find("{")
+        if start == -1:
+            return None
+        depth = 0
+        in_string = False
+        i = start
+        while i < len(s):
+            c = s[i]
+            if c == "\\" and in_string:
+                # skip the escaped char so an escaped quote does not flip in_string
+                i += 2
+                continue
+            if c == '"':
+                in_string = not in_string
+            elif not in_string:
+                if c == "{":
+                    depth += 1
+                elif c == "}":
+                    depth -= 1
+                    if depth == 0:
+                        return s[start : i + 1]
+            i += 1
+        return None
 
     @staticmethod
     def _escape_control_chars(s: str) -> str:

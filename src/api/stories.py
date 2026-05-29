@@ -25,6 +25,11 @@ class GenerateTopicsRequest(BaseModel):
     theme: Optional[str] = None
     voice: Optional[str] = None
     preferences: Optional[list] = ["Any"]
+    # When True, the cache lookup is skipped and the LLM is called even if
+    # topics already exist for this (theme, age, language, filter) slot.
+    # Existing titles are still passed to the prompt for dedup so the new
+    # batch doesn't collide with prior ones.
+    new: bool = False
 
 
 class SelectTopicRequest(BaseModel):
@@ -45,6 +50,7 @@ async def _run_topics_workflow(request: GenerateTopicsRequest):
                 "language": request.language,
                 "theme": request.theme or "",
                 "voice": request.voice or "",
+                "new":   bool(request.new),
             },
             **build_trace_config(
                 name="WF1-topics",
@@ -218,7 +224,10 @@ async def _resume_pipeline_inner(thread_id: str):
     """Inner implementation — runs under per-thread lock."""
     # Local imports — these modules pull heavy deps (langgraph, deepeval) that
     # we don't want to load at FastAPI startup.
-    from ..workflows.story_creator_workflow import story_creator_workflow
+    from ..workflows.story_creator_workflow import (
+        story_creator_workflow,
+        MAX_CORRECTION_ATTEMPTS as STORY_MAX_CORRECTION_ATTEMPTS,
+    )
     from ..workflows.master_workflow import master_workflow
     from ..utils.tracing import build_trace_config
 
@@ -296,12 +305,46 @@ async def _resume_pipeline_inner(thread_id: str):
         wf2_state = None
 
     if wf2_state is not None and wf2_state.next:
-        logger.info(f"[Resume] {story_id}: resuming WF2 at nodes={wf2_state.next}, then starting master")
-        try:
-            await story_creator_workflow.ainvoke(None, config=wf2_config)
-        except Exception as e:
-            logger.exception(f"[Resume] WF2 resume failed for {story_id}: {e}")
-            return
+        # If the prior WF2 run exhausted its structural-validation retries
+        # without producing a story, resuming `None` will just re-trigger the
+        # same end-state. Detect this and restart WF2 from scratch instead.
+        wf2_values = wf2_state.values or {}
+        prior_story = wf2_values.get("story")
+        prior_attempts = wf2_values.get("correction_attempts", 0)
+        prior_failed_structural = (
+            prior_attempts >= STORY_MAX_CORRECTION_ATTEMPTS
+            and not (isinstance(prior_story, dict) and (prior_story.get("story_text") or "").strip())
+        )
+        if prior_failed_structural:
+            logger.info(
+                f"[Resume] {story_id}: prior WF2 hit max correction attempts "
+                f"({prior_attempts}) with no story — wiping checkpoints and restarting WF2"
+            )
+            try:
+                await db.delete_workflow_checkpoints([f"{story_id}_wf2"])
+            except Exception as e:
+                logger.warning(f"[Resume] Failed to clear WF2 checkpoints (non-fatal): {e}")
+            wf2_initial = {
+                "selected_topic":      topic,
+                "story":               None,
+                "validated":           False,
+                "evaluation":          None,
+                "correction_attempts": 0,
+                "completed":           [],
+                "errors":              {},
+            }
+            try:
+                await story_creator_workflow.ainvoke(wf2_initial, config=wf2_config)
+            except Exception as e:
+                logger.exception(f"[Resume] WF2 restart failed for {story_id}: {e}")
+                return
+        else:
+            logger.info(f"[Resume] {story_id}: resuming WF2 at nodes={wf2_state.next}, then starting master")
+            try:
+                await story_creator_workflow.ainvoke(None, config=wf2_config)
+            except Exception as e:
+                logger.exception(f"[Resume] WF2 resume failed for {story_id}: {e}")
+                return
 
     # WF2 either resumed-to-completion or had no pending nodes already.
     # Master never started (otherwise we'd have taken the master-resume branch
