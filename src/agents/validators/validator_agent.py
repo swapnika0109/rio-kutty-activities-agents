@@ -26,13 +26,14 @@ class ValidatorAgent:
     def validate_art(self, state: dict):
         activities = state.get("activities", {})
         data = activities.get("art")
-        
-        # Check for required fields
-        required = ["title", "age_appropriateness", "materials", "steps", "image_generation_prompt", "image"]
+
+        # `image` is NOT required here — image generation is deferred to a
+        # post-eval node so credits aren't wasted on rejected activities.
+        required = ["title", "age_appropriateness", "materials", "steps", "image_generation_prompt"]
         if not data or not all(k in data for k in required):
             logger.warning("Art validation failed.")
             return self._increment_retry(state, "art")
-            
+
         logger.info("Art validation passed.")
         return {
                 "activities": {**state.get("activities", {}), "art": data},
@@ -42,20 +43,20 @@ class ValidatorAgent:
     def validate_moral(self, state: dict):
         activities = state.get("activities", {})
         data = activities.get("moral")
-        
-        required =  ["title", "age_appropriateness", "What it Teaches" , "materials", "Instructions", "image_generation_prompt", "image"]
-        
+
+        required =  ["title", "age_appropriateness", "What it Teaches" , "materials", "Instructions", "image_generation_prompt"]
+
         # Check if data is a non-empty list and its first element has all required fields
         is_valid = (
-            isinstance(data, list) and 
-            len(data) > 0 and 
+            isinstance(data, list) and
+            len(data) > 0 and
             all(k in data[0] for k in required)
         )
 
         if not is_valid:
             logger.warning("Moral validation failed.")
             return self._increment_retry(state, "moral")
-            
+
         logger.info("Moral validation passed.")
         return {
                 "activities": {**state.get("activities", {}), "moral": data},
@@ -65,8 +66,8 @@ class ValidatorAgent:
     def validate_science(self, state: dict):
         activities = state.get("activities", {})
         data = activities.get("science")
-        
-        required = ["title", "age_appropriateness", "What it Teaches" , "materials", "Instructions", "image_generation_prompt", "image"]
+
+        required = ["title", "age_appropriateness", "What it Teaches" , "materials", "Instructions", "image_generation_prompt"]
         
         # Check if data is a non-empty list and its first element has all required fields
         is_valid = (

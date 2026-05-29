@@ -1,165 +1,61 @@
-You are TWO collaborating agents designing a 15-minute home
-science experiment for a {age}-year-old:
-- Context Driver: extracts the science and writes the activity
-- Safety Auditor: checks every step against age-appropriate safety
+You design ONE home science experiment for a {age}-year-old.
 
 STORY TITLE: {story_title}
-SCIENCE CONCEPTS DEMONSTRATED IN THE STORY:
-{story}
+STORY SCIENCE CONCEPTS: {story}
+SCIENCE ANCHOR (the concept to teach): {science_angle}
 
-PRIMARY SCIENCE ANCHOR (the experiment MUST teach this concept
-by name — title and "What it Teaches" must reference it):
-{science_angle}
+GUIDING RULES:
+1. The experiment teaches the science anchor — a REAL mechanism the
+   child observes (not a craft, not story re-enactment, not breathing).
+   Pick a different angle from the moral activity, which handles the
+   story's emotional lesson. Science handles HOW the world works.
+2. Difficulty MUST match the age. Easy for the young, real challenge
+   for older kids. See per-age examples below.
+3. Instructions are crisp numbered steps — one action per step. NOT
+   storytelling prose. A parent reads them like a recipe.
+4. Assume kid-safe variants of common tools (scissors → safety
+   scissors, paint → washable). Avoid open flame, blades, electricity,
+   hot liquids, choking-size items for under-4s.
 
-DAILY-LIFE LINK (the experiment should echo this small action
-the child can try in the next 24 hours):
-{daily_life_application}
+PER-AGE DIFFICULTY EXAMPLES (use these as calibration — adapt the
+concept, do NOT copy verbatim):
+- 3-4 yrs: place dot stickers on circles with EYES CLOSED, then
+  open and see how close — teaches imagination/mental mapping.
+- 4-5 yrs: draw the target object while looking only at a model,
+  not your hand — teaches visual-motor mapping.
+- 5-6 yrs: predict-then-test which household items float / how
+  shadows shrink as the lamp moves closer.
+- 6-7 yrs: shine a torch through coloured cellophane to mix light
+  colours, OR build a periscope from two mirrors — teaches how
+  eyes and light work.
+- 7-8 yrs: build a simple catapult or rolled-paper "ball" and aim
+  it at a target; measure misses and adjust — teaches projectile
+  aim and iteration.
+- 8-9 yrs+: design a fair test (one variable at a time) — measure
+  light angle vs shadow length, or build a balloon-powered car and
+  vary the balloon size to compare distance.
 
-DESIGN PROCESS (think through before writing JSON):
-
-1. ANCHOR CHECK — the experiment must teach the SCIENCE ANCHOR
-   above. Not a tangentially-related concept. If the anchor is
-   "buoyancy", the experiment makes things float, not "we
-   learn about water."
-
-2. UNIQUENESS + REAL-MECHANISM SCIENCE — the experiment
-   must teach the EXACT scientific mechanism named in the
-   SCIENCE ANCHOR, using materials that actually
-   demonstrate that mechanism. Substituting a different
-   phenomenon (e.g. teaching "filtered light" via cellophane
-   when the anchor is "bioluminescence") is a HARD FAIL.
-
-   The experiment must also TIE TO THE STORY: name the
-   character or central object in step 1 so the child sees
-   the connection immediately. The story-tie can be in the
-   framing — but the SCIENCE must be real.
-
-   What "real-mechanism science" looks like:
-   - Story about a firefly's bioluminescence → mix safe
-     glow-in-the-dark powder into water and shake to see
-     a real chemical glow reaction; or charge a glow-stick
-     and observe how living things use a similar chemical
-     trick. NOT shining a flashlight through plastic (that
-     is reflection / filtered light, not bioluminescence).
-   - Story about Pip the pebble floating on a leaf →
-     test which household objects float vs sink, name the
-     mechanism (buoyancy / density). NOT "make a paper
-     boat" (that's craft, not buoyancy science).
-   - Story about a water-cycle drop → boil-then-cool water
-     to see condensation form on a cold lid (with adult
-     handling the heat). NOT "pour water into a cup"
-     (that's not the water cycle).
-
-   RULE: write the experiment, then ask yourself:
-   "Does the child, by doing this experiment, observe the
-   exact mechanism named in the science_angle?" If the
-   answer is no — even if the experiment looks story-themed
-   — REJECT and design a different experiment.
-
-   If no kid-safe experiment exists for the science_angle
-   at this age, prefer a SIMPLER experiment that genuinely
-   demonstrates the mechanism over a fancier one that fakes
-   it.
-
-3. AGE-APPROPRIATE MATERIALS — YOU are the judge of what
-   a {age}-year-old can safely handle with normal parental
-   supervision. Use this guiding question for every item
-   on the materials list:
-   "Would a {age}-year-old, with a parent in the room, be
-   safe handling this for the duration of this experiment?"
-
-   For most kids' tools there are age-appropriate variants:
-   scissors → safety scissors with rounded tips; knife →
-   plastic kid knife or butter knife; paint → washable
-   non-toxic kids' paint; glue → glue stick; needle →
-   blunt yarn needle. Use the kid-friendly version that
-   matches the age. You do NOT have to itemize the safety
-   variant in the name — the evaluator and parents know
-   "scissors for a 4-year-old" means safety scissors.
-
-   What to AVOID for young children (rough guide, use
-   judgment for the specific age):
-   - Open flame, candles, hot water above lukewarm, stoves,
-     ovens, microwaves
-   - Electricity, batteries, mains-powered tools
-   - Strong chemicals (bleach, ammonia, drain cleaner,
-     concentrated acids); strong-smelling solvents
-   - Small loose items that fit in a mouth for under-4s
-   - Anything with an instruction the child cannot
-     physically perform at their age
-   For older children (8+), you have more latitude — they
-   can use real scissors, sharper tools, mild chemistry,
-   small parts. Use the {age} input to decide.
-
-   COMMON KID-SAFE SUBSTITUTIONS — adult science demos often
-   use small/sharp items by default. For young children,
-   substitute with the kid-safe equivalent:
-   - For surface-tension or floating demos: use a small
-     folded paper square, a dry leaf, a piece of plastic
-     straw cut short, or a small bit of cork — NOT pins,
-     needles, paper clips, or sewing items.
-   - For "mixing" or "spreading": use a plastic spoon —
-     NOT a knife.
-   - For "cutting": use pre-cut shapes, or have a parent
-     cut on the side — do NOT put cutting tools in step
-     for under-6s.
-   - For small parts: use child-fist-sized items.
-
-   Every step must be doable by the child themselves with a
-   parent supervising — not the parent actively doing the
-   step.
-
-SENTENCE-LENGTH RULE (for age-appropriate writing):
-- Instructions and "What it Teaches" must use SHORT sentences.
-- For ages 3-4: max 10 words per sentence, average ~7.
-- For ages 5-6: max 14 words per sentence, average ~10.
-- Break compound sentences into two.
-
-4. THE "MAGIC TRICK" — frame the science as a tiny magic
-   trick of nature. The child performs it, observes a visible
-   result, and a parent says "did you know WHY that happens?"
-   — then the activity explains it.
-
-5. STEPS — 5 to 6 ultra-simple steps. Each step is one action.
-   At least one step asks the child to PREDICT or GUESS
-   before observing (this is the science learning beat).
-
-6. WHAT IT TEACHES — name the SCIENCE ANCHOR explicitly and
-   explain it in 2-3 sentences a {age}-year-old can repeat
-   back. Add one familiar comparison.
-
-7. SAFETY AUDIT — Safety Auditor reads every step. Any choking
-   risk → remove. Any sharp/hot/electrical step → rewrite.
-   Any step a {age}-year-old can't physically do → simplify.
-
-8. FINAL VISUAL — describe the finished setup or final result
-   for an image generator (top-down, well-lit, colourful).
+STYLE:
+- Title: 3-6 words, names the experiment plainly.
+- "What it Teaches": 2-3 short sentences naming the anchor concept
+  and one familiar comparison. No story re-tell.
+- Steps: 4-6 numbered actions. Each step is ONE action. Include a
+  PREDICT step before the OBSERVE step.
 
 OUTPUT — return ONLY this valid JSON array (one item), no prose:
 
 [{
-    "title": "<3-6 word experiment name including the science anchor concept>",
-    "age_appropriateness": "<1 sentence — why a {age}-year-old can do this safely AND find it exciting>",
-    "What it Teaches": "<2-3 sentences naming the SCIENCE ANCHOR and explaining the mechanism in {age}-year-old words, plus one familiar comparison>",
-    "materials": ["<item 1>", "<item 2>", "<item 3-6 items, all common and safe>"],
-    "Instructions": ["<step 1>", "<step 2>", "<step 3>", "<step 4>", "<step 5>", "<step 6 — last step is 'see if your guess was right' or similar reflection>"],
-    "image_generation_prompt": "<English only — A high-quality, top-down photo of the finished experiment setup: detailed colours, materials laid out, and the visible science result>"
+    "title": "<3-6 word experiment name>",
+    "age_appropriateness": "<1 short sentence — why a {age}-year-old can do this>",
+    "What it Teaches": "<2-3 short sentences — the science anchor + a familiar comparison>",
+    "materials": ["<item 1>", "<item 2>", "<3-5 common items>"],
+    "Instructions": ["<step 1>", "<step 2>", "<step 3>", "<step 4>", "<step 5>"],
+    "image_generation_prompt": "<English only — top-down photo of the finished setup, colours and materials shown>"
 }]
 
-LANGUAGE RULES:
-- title, age_appropriateness, What it Teaches, materials,
-  Instructions → write in {language}
-- image_generation_prompt → English ALWAYS
-- Keep science concept names (e.g. "buoyancy", "evaporation")
-  recognizable — in Telugu, transliterate or keep English term
-  if the Telugu term is unfamiliar to a child
+LANGUAGE: title, age_appropriateness, What it Teaches, materials,
+Instructions → write in {language}. image_generation_prompt → English.
+Sentence length: 3-4 yrs max 10 words/sentence; 5-6 yrs max 14; older
+ages may be slightly longer.
 
-HARD GATES (any of these → the experiment has failed):
-- The SCIENCE ANCHOR concept is not named in title or
-  "What it Teaches"
-- Any step requires fire, blades, boiling, electricity, or
-  small loose items for under-4s
-- The experiment could be performed identically for a totally
-  different story — it must be tied to THIS story's elements
-
-Return ONLY the JSON array. No commentary before or after.
+Return ONLY the JSON array.

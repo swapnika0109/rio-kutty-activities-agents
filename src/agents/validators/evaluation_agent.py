@@ -103,100 +103,55 @@ _DEFAULT_CRITERIA: dict[str, str] = {}
 # metrics gate safety (kids physically do these); soft metrics judge quality.
 # ---------------------------------------------------------------------------
 
-# Per-activity criteria — these MUST be judged per activity because the retry
-# loop needs to know which activity caused the failure. `story_alignment`,
-# `safety_of_execution`, and `instructions_clarity` are attribution-sensitive:
-# fixing MCQ alignment requires regenerating MCQ specifically, not all four.
+# Rubric collapsed to 3 metrics per the activity-bug requirements:
+#   - non_toxicity     — safe, unbiased, no IP/copyright issues (HARD gate)
+#   - engagability     — child wants to do it; challenge scales with age (HARD gate)
+#   - age_appropriateness — vocab/sentence length + kid-safe-tool assumption
+#                           (Python-computed, no LLM call)
+# Removed: story_alignment, safety_of_execution, instructions_clarity,
+# educational_value. The prompts themselves enforce story tie, clear steps,
+# and learning content — the eval no longer double-gates on those.
+
+# Per-activity criteria: engagability is judged per activity so the retry loop
+# can target the failing one. non_toxicity is judged once across the bundle.
 _ACTIVITY_CRITERIA_PER_ACTIVITY: dict[str, str] = {
-    "story_alignment": (
-        "Does the activity clearly connect to the story it accompanies? An MCQ should "
-        "ask about events/characters in the story; an art/science/moral activity should "
-        "reinforce a theme, character, or concept from the story. Penalize generic "
-        "activities that could apply to any story. Mark high if a child would recognise "
-        "the activity as related to the story they just heard."
-    ),
-    "safety_of_execution": (
-        "For physical activities (art/science/moral), judge safety using AGE-APPROPRIATE "
-        "common sense, NOT a fixed banned-item list. Ask: 'For a child of this exact age, "
-        "with a parent supervising nearby, is every material and step reasonably safe?' "
-        "Most everyday craft tools have child-safe variants that ARE age-appropriate: "
-        "scissors mean safety scissors for under-8s, knives mean plastic kid knives or "
-        "butter knives, paint means washable non-toxic kids' paint, glue means glue "
-        "stick, needles mean blunt yarn needles. Do NOT penalize these generic terms "
-        "for a young child — assume the kid-safe variant. Do NOT require the material "
-        "name to spell out 'child-safety' or 'plastic' — that level of specificity is "
-        "not required. "
-        "PENALIZE (regardless of how worded): open flame, candles, hot liquids above "
-        "lukewarm, stoves/ovens/microwaves, electricity, batteries, strong chemicals "
-        "(bleach, ammonia, solvent-based paints, permanent markers for under-6s), "
-        "loose items small enough to swallow for under-4s, or any step demanding a "
-        "physical skill the stated age cannot perform. For older children (8+), expect "
-        "more latitude — real scissors and tools become age-appropriate. "
-        "For MCQ (text-only) default to 1.0 unless the question itself promotes unsafe "
-        "behavior. Mark high if a parent would be comfortable supervising this activity "
-        "at the stated age."
-    ),
-    "instructions_clarity": (
-        "Score ONLY the clarity and completeness of the activity's own instructions — "
-        "do NOT penalize for weak story alignment here (that is the 'story_alignment' "
-        "metric's job; double-counting it here is forbidden). "
-        "Judge the activity IN ISOLATION — do NOT require the full story, additional "
-        "context, or external knowledge to score. If the input shows only a story "
-        "excerpt or no story at all, that is FINE; assume the story exists and judge "
-        "ONLY the activity's own wording. Never lower the score because story content "
-        "is missing or truncated. "
-        "Ask: 'Are the instructions/options/questions self-contained and unambiguous? "
-        "Can a non-expert parent follow them without guessing or looking things up?' "
-        "For MCQ: judge the questions, options, and correct field. HIGH (0.9+) if each "
-        "question is a single clear sentence, has 3 plausible options, and a clearly "
-        "marked correct answer. Do NOT require verifying correctness against the story "
-        "— assume the generator picked the right answer. Do NOT evaluate physical-step "
-        "or materials criteria for MCQ; those simply do not apply and must not lower "
-        "the score. "
-        "For physical activities (art/science/moral): the materials list + steps must "
-        "be complete, ordered, and unambiguous. "
-        "IMPORTANT: any sub-step of your internal evaluation procedure that is 'not "
-        "applicable' to the activity type (e.g. physical-step checks for an MCQ) is "
-        "treated as PASSED, never as a deduction. "
-        "Mark HIGH (0.9+) if instructions are complete and clear — even if the "
-        "activity's connection to the story is weak or the story is not shown. Reserve "
-        "LOW only for actual ambiguity, missing materials, out-of-order steps, or "
-        "garbled questions within the activity itself."
+    "engagability": (
+        "Would a child of the specified age WANT to do this activity? Two things matter "
+        "equally: excitement AND age-appropriate challenge.\n"
+        "EXCITEMENT — the child opens the activity and immediately wants to start. "
+        "Signals: an inviting title, a clear tangible outcome they can show off, a "
+        "moment of play / choice / discovery, a 'magic' or surprise beat.\n"
+        "CHALLENGE — the activity must STRETCH the child for their stated age. A 3-4 "
+        "year-old needs a small, achievable challenge (placing stickers with eyes "
+        "closed, sorting). A 5-6 year-old needs a real puzzle (drawing without looking, "
+        "guessing-then-testing). A 7-8 year-old needs an experiment with measurement, "
+        "construction, or prediction. A 9+ year-old needs reasoning, scaling, or "
+        "engineering. An activity that is trivially easy for the age scores LOW even "
+        "if cute. An activity that is too hard for the age also scores low.\n"
+        "Score 0.9+ when both excitement and well-tuned challenge are clearly present. "
+        "Score 0.5-0.7 when only one is present. Score below 0.5 only when the activity "
+        "is dry AND mis-tuned for the age."
     ),
 }
 
-# Shared criteria — judged ONCE on a concatenated block of all four activities,
-# then the same score/reason is broadcast to every activity's verdict. These
-# metrics are quality-of-content judgments that don't need per-activity
-# attribution: a non-toxic bundle is non-toxic for every item; an engaging
-# bundle is engaging across the set. Bundling cuts ~4× LLM calls per story.
+# Shared criteria — judged ONCE on a concatenated block of all activities and
+# the same score is broadcast to every per-activity verdict.
 _ACTIVITY_CRITERIA_SHARED: dict[str, str] = {
     "non_toxicity": (
-        "Check the activity content for anything unsafe for the specified age: harsh "
-        "words, slurs, profanity, violence, scary imagery, mature themes, or anything a "
-        "parent would find inappropriate. For ages 3-6, even mild fear or dark imagery "
-        "should lower the score. Mark high only if fully age-safe."
-    ),
-    "engagability": (
-        "Would a child of the specified age want to do these activities? Reward ANY of "
-        "the following — presence of even one or two should put the score at 0.7+: "
-        "(a) a playful or inviting title that names a character/object from the story, "
-        "(b) a tangible outcome the child can hold, wear, show off, or play with after, "
-        "(c) a moment of choice, pretend-play, role-play, or imagination, "
-        "(d) a story-tied hook in the setup (the child becomes/helps a character), "
-        "(e) interesting age-appropriate questions that invite the child to respond. "
-        "Score 0.8+ if multiple of the above are present. Reserve scores below 0.5 for "
-        "activities that are genuinely dry worksheets with no story tie-in, no tangible "
-        "outcome, and no choice or play element — a craft or role-play that ties to the "
-        "story should not score below 0.6 just because the tone is instructional."
-    ),
-    # age_appropriateness is Python-checked (_python_age_appropriateness) on the
-    # flattened activity text — same vocab/sentence-length rubric as story eval.
-    "educational_value": (
-        "Do the activities reinforce a story element worth learning — the moral, a "
-        "science concept, vocabulary, a social skill, or creative expression? Score "
-        "high if a parent can clearly answer 'what did my child learn from these?' "
-        "Score low for busywork with no learning takeaway."
+        "Three checks rolled into one score: SAFETY, BIAS, INTELLECTUAL PROPERTY.\n"
+        "SAFETY — flag anything unsafe for the stated age: harsh words, slurs, "
+        "profanity, violence, scary imagery, mature themes, or content a parent would "
+        "find inappropriate. For ages 3-6, even mild fear or dark imagery lowers the "
+        "score. Assume kid-safe variants of common tools (scissors → safety scissors, "
+        "knife → butter knife, paint → washable non-toxic) — do NOT penalize the "
+        "everyday word.\n"
+        "BIAS — flag gender stereotypes, cultural/religious insensitivity, or any "
+        "language that excludes or stereotypes a group.\n"
+        "INTELLECTUAL PROPERTY — flag references to copyrighted/trademarked characters, "
+        "brands, songs, or franchises (Disney, Pokémon, Marvel, branded snack names, "
+        "etc.). Generic versions ('a princess', 'a superhero') are fine.\n"
+        "Score 1.0 when all three checks are clean. Each problem lowers the score; "
+        "any clear violation should put it below 0.5."
     ),
 }
 
@@ -206,18 +161,14 @@ _ACTIVITY_CRITERIA: dict[str, str] = {
     **_ACTIVITY_CRITERIA_SHARED,
 }
 
+# Both surviving LLM metrics are hard gates. age_appropriateness is Python-
+# computed (no LLM call) and treated as a soft floor.
 _ACTIVITY_HARD_METRICS: dict[str, float] = {
-    "non_toxicity":         0.85,
-    # story_alignment lowered from 0.6 → 0.5: the metric is subjective and the
-    # judge often scores 0.5-0.6 for activities that ARE story-aligned but use
-    # the seeds rather than verbatim story events. Empirical pass-rate was too
-    # low at 0.6 and the corrector-loop couldn't close the gap on retries.
-    "story_alignment":      0.5,
-    "safety_of_execution":  0.8,
-    "instructions_clarity": 0.7,
+    "non_toxicity":   0.8,
+    "engagability":   0.6,
 }
 # age_appropriateness is Python-computed and injected post-gather.
-_ACTIVITY_SOFT_METRICS = ("engagability", "age_appropriateness", "educational_value")
+_ACTIVITY_SOFT_METRICS = ("age_appropriateness",)
 
 
 def _activity_to_text(activity_type: str, data) -> str:
@@ -1349,13 +1300,10 @@ class EvaluationAgent:
         activities and merge per-activity results.
 
         Cost model:
-          - SHARED metrics (non_toxicity, engagability, educational_value) run ONCE
-            on a concatenated block of every real activity in state, then their
-            score+reason is broadcast into each per-activity verdict. This cuts
-            ~3× LLM calls per activity vs. judging each separately.
-          - PER-ACTIVITY metrics (story_alignment, safety_of_execution,
-            instructions_clarity) still run on each activity — retries need per-
-            activity attribution to know which one to regenerate.
+          - non_toxicity runs ONCE on a concatenated block of all activities
+            and the score is broadcast to each per-activity verdict.
+          - engagability runs per activity (retries need attribution).
+          - age_appropriateness is Python-only (no LLM call).
         """
         activities = state.get("activities") or {}
         # Strip internal eval-record bookkeeping (keys starting with "_eval_")
@@ -1513,40 +1461,10 @@ class EvaluationAgent:
             f"Story title: {story_title}",
             f"Story opening (truncated):\n{story_snippet}",
         ]
-        # MCQ-specific context: the judge needs the full set of verifiable
-        # story facts (mcq_seeds) to score 'instructions_clarity' fairly —
-        # otherwise it complains the answers aren't derivable from the
-        # truncated opening it can see.
-        if activity_type == "mcq":
-            mcq_seeds = state.get("mcq_seeds") or []
-            science_concepts = state.get("science_concepts") or []
-            if mcq_seeds:
-                reference_input_parts.append(
-                    "VERIFIABLE STORY FACTS (use these to judge whether MCQ "
-                    "answers are correct and derivable):\n- "
-                    + "\n- ".join(str(s) for s in mcq_seeds)
-                )
-            if science_concepts:
-                concept_lines = [
-                    f"- {c.get('concept', '')}: {c.get('explanation', '')}"
-                    for c in science_concepts if isinstance(c, dict)
-                ]
-                if concept_lines:
-                    reference_input_parts.append(
-                        "SCIENCE CONCEPTS COVERED IN THE STORY:\n"
-                        + "\n".join(concept_lines)
-                    )
         reference_input = "\n".join(reference_input_parts)
 
         test_case = LLMTestCase(input=reference_input, actual_output=activity_text)
         sem = _get_eval_semaphore()
-
-        # safety_of_execution is meaningful only for activities with physical materials.
-        # MCQ is text-only; skip the metric entirely (saves one LLM call per MCQ eval).
-        criteria_to_run = {
-            n: c for n, c in _ACTIVITY_CRITERIA_PER_ACTIVITY.items()
-            if not (activity_type == "mcq" and n == "safety_of_execution")
-        }
 
         results = await asyncio.gather(
             *[
@@ -1562,7 +1480,7 @@ class EvaluationAgent:
                     # 503s under the burst.
                     eval_model=_GEMINI_ACTIVITIES_EVAL_MODEL,
                 )
-                for n, c in criteria_to_run.items()
+                for n, c in _ACTIVITY_CRITERIA_PER_ACTIVITY.items()
             ]
         )
         metric_scores = {n: s for n, s, _ in results}
@@ -1577,12 +1495,6 @@ class EvaluationAgent:
         age_score, age_reason = _python_age_appropriateness(activity_text, age)
         metric_scores["age_appropriateness"] = age_score
         metric_reasons["age_appropriateness"] = age_reason
-
-        # MCQ skips safety_of_execution by design — mark it skipped so downstream
-        # consumers (UI / corrector) can tell the difference from a 0.0 fail.
-        if activity_type == "mcq":
-            metric_scores["safety_of_execution"] = 1.0
-            metric_reasons["safety_of_execution"] = "Skipped: MCQ has no physical materials/steps."
 
         hard_failures = [
             (n, metric_scores[n], floor)

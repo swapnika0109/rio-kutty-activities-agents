@@ -233,6 +233,9 @@ class TopicsCreatorAgent:
         country     = state.get("country", "Any")
         theme       = state.get("theme", "")   # e.g. "theme1", "theme2", "theme3", or "" for all
         preferences = state.get("preferences", ["any"])
+        # When True, skip the Firestore cache and always call the LLM.
+        # Existing titles are still passed to the prompt for dedup.
+        force_new   = bool(state.get("new", False))
         # Normalise preferences to a single string key for the cache doc ID
         pref_key = (
             preferences[0].lower().strip()
@@ -260,7 +263,8 @@ class TopicsCreatorAgent:
 
         logger.info(
             f"[TopicsCreator] age={age} lang={lang_code} religion={religion} "
-            f"country={country} n={n} theme_filter={requested or 'all'}"
+            f"country={country} n={n} theme_filter={requested or 'all'} "
+            f"force_new={force_new}"
         )
 
         all_topics: list[dict] = []
@@ -295,6 +299,7 @@ class TopicsCreatorAgent:
                         "preference": pref,
                     },
                     age=age, lang=lang_code, registry=registry,
+                    force_new=force_new,
                 )
                 if isinstance(result, list):
                     all_topics.extend(result)
@@ -359,6 +364,7 @@ class TopicsCreatorAgent:
                             "preference": pref,
                         },
                         age=age, lang=lang_code, registry=registry,
+                        force_new=force_new,
                     )
                     if isinstance(result, list):
                         all_topics.extend(result)
@@ -401,6 +407,7 @@ class TopicsCreatorAgent:
                         "preference": pref,
                     },
                     age=age, lang=lang_code, registry=registry,
+                    force_new=force_new,
                 )
                 if isinstance(result, list):
                     all_topics.extend(result)
@@ -432,20 +439,31 @@ class TopicsCreatorAgent:
         age: str,
         lang: str,
         registry,
+        force_new: bool = False,
     ) -> list:
         """
         Returns titles for one (theme, filter_value) slot.
         Reads from Firestore cache; calls LLM only on cache miss.
         On LLM call, fetches ALL existing titles across all themes/slots for this
         age+lang from Firestore and passes them to the prompt to prevent global duplicates.
+
+        When force_new=True the cache short-circuit is skipped — the LLM is
+        always called and the new batch is merged with the existing cache.
+        Existing titles still feed the dedup hint so the new batch does not
+        collide with prior ones.
         """
-        # 1. Cache check
+        # 1. Cache check (skipped when force_new=True)
         n = settings.TOPICS_PER_THEME
         cached = await self.db.get_title_library_entry(theme_name, age, lang, filter_value)
-        if cached and len(cached) >= n:
+        if not force_new and cached and len(cached) >= n:
             logger.info(f"[TopicsCreator] Cache hit: {theme_name}/{filter_value} ({len(cached)} topics)")
             return cached[:n]
-        if cached:
+        if force_new:
+            logger.info(
+                f"[TopicsCreator] force_new=True: bypassing cache for "
+                f"{theme_name}/{filter_value} ({len(cached or [])} existing kept for dedup)"
+            )
+        elif cached:
             logger.info(
                 f"[TopicsCreator] Partial cache hit: {theme_name}/{filter_value} "
                 f"({len(cached)}/{n}) — generating {n - len(cached)} more"
@@ -455,7 +473,8 @@ class TopicsCreatorAgent:
         # plus extracted character names so the LLM avoids reusing the same
         # protagonist across batches. Character extraction is a cheap heuristic
         # over titles — see _extract_character_names.
-        need = n - len(cached) if cached else n
+        # force_new asks for a full fresh batch regardless of cache size.
+        need = n if force_new else (n - len(cached) if cached else n)
         all_existing_titles = await self.db.get_all_topic_titles(age, lang, theme=theme_name)
         all_existing_characters = await self.db.get_all_topic_character_names(
             age, lang, titles=all_existing_titles, theme=theme_name,
@@ -501,22 +520,31 @@ class TopicsCreatorAgent:
         if cached:
             existing_set = {t["title"] for t in cached}
             deduped = [t for t in new_titles if t["title"] not in existing_set]
-            titles = cached + deduped
+            # force_new wants the FRESH batch returned to the caller, but we
+            # still grow the cache by appending the new titles after the old.
+            if force_new:
+                titles_to_save = cached + deduped
+                titles_to_return = deduped
+            else:
+                titles_to_save = cached + deduped
+                titles_to_return = titles_to_save
             logger.info(
-                f"[TopicsCreator] Merged: {len(cached)} cached + {len(deduped)} new = {len(titles)} total"
+                f"[TopicsCreator] Merged: {len(cached)} cached + {len(deduped)} new "
+                f"(saved={len(titles_to_save)}, returned={len(titles_to_return)})"
             )
         else:
-            titles = new_titles
+            titles_to_save = new_titles
+            titles_to_return = new_titles
 
         # 7. Save to cache (non-fatal if it fails)
         # Persist all generated titles so future runs with larger n can reuse them,
         # but only return the first n to the workflow (LLM often over-produces).
-        if titles:
+        if titles_to_save:
             try:
                 await self.db.save_title_library_entry(
-                    theme_name, age, lang, filter_type, filter_value, titles
+                    theme_name, age, lang, filter_type, filter_value, titles_to_save
                 )
             except Exception as e:
                 logger.warning(f"[TopicsCreator] Cache save failed for {theme_name}/{filter_value}: {e}")
 
-        return titles[:n]
+        return titles_to_return[:n]

@@ -15,16 +15,11 @@ logger = setup_logger(__name__)
 # pulls in DeepEval and Gemini SDKs that we don't want loaded just to format a
 # retry prompt.
 _METRIC_THRESHOLDS: dict[str, float] = {
-    # Hard metrics (must clear their floor)
-    "non_toxicity":         0.85,
-    "story_alignment":      0.5,
-    "safety_of_execution":  0.8,
-    "instructions_clarity": 0.7,
-    # Soft metrics (averaged, pass at >= 0.6) — included individually so we
-    # can flag any soft metric that's pulling the average down.
-    "engagability":         0.6,
-    "age_appropriateness":  0.6,
-    "educational_value":    0.6,
+    # Rubric collapsed to 3 metrics. Must mirror _ACTIVITY_HARD_METRICS +
+    # _ACTIVITY_SOFT_METRICS in evaluation_agent.py.
+    "non_toxicity":        0.8,
+    "engagability":        0.6,
+    "age_appropriateness": 0.6,
 }
 
 

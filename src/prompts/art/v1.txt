@@ -1,122 +1,46 @@
-You are an Early Childhood Educator and Art/Craft Instructor.
-Design ONE home-based craft activity that a {age}-year-old can
-actually finish in 15-20 minutes — and that they will want
-to show off afterwards.
+You design ONE 15-20 minute craft for a {age}-year-old that ties to
+the story and produces something they can hold, wear, or play with.
 
 STORY TITLE: {story_title}
-ART DIRECTION (from the story — your starting image):
-{summary}
+ART DIRECTION: {summary}
+DAILY-LIFE LINK: {daily_life_application}
 
-DAILY-LIFE LINK (the craft must echo this in a child-sized way —
-something the child can DO or NOTICE in the next 24 hours after
-finishing the craft):
-{daily_life_application}
+GUIDING RULES:
+1. The craft makes a 3D version of one concrete object or character
+   from THIS story (named in step 1). Not plain "drawing" or
+   "colouring" — use paper, cardboard, leaves, twigs, fabric, etc.
+2. The finished craft has a ROLE: child wears it, waves it, hides
+   it, gifts it, or uses it to play out a scene. Not a flat picture
+   for a folder.
+3. Difficulty scales with age. 3-4 yrs: tear/stick. 5-6 yrs: fold +
+   simple cut. 7-9 yrs: multi-step assembly with measuring or
+   layering.
+4. Instructions are crisp numbered steps — one action per step. NOT
+   storytelling prose.
+5. Assume kid-safe variants of common tools (scissors → safety
+   scissors, glue → glue stick, paint → washable non-toxic). Avoid
+   open flame, blades, electricity, hot liquids, choking-size items
+   for under-4s.
 
-DESIGN PROCESS (think through before writing JSON):
-1. SKILL — at {age}, what can hands actually do? Cutting straight
-   lines with safe scissors? Squeezing glue? Tearing paper?
-   Sticking foam shapes? Pick a hand skill the child has.
-2. CONCEPT — name ONE concrete object or character from the
-   art direction above. The craft makes a 3D version of that
-   thing the child can hold, wear, or place somewhere.
-3. CONSTRAINT — DO NOT propose plain "drawing" or "coloring".
-   The craft must involve a real 3D material: paper, cotton,
-   leaves, pasta, twigs, clay, paper cups, cardboard, fabric
-   scraps, etc.
-4. PLAY VALUE — after the craft is done, the child should be
-   able to DO something with it (wear it, hide it, gift it,
-   point to something in real life with it). Not a flat
-   picture that goes in a folder.
-5. STEPS — exactly 3 steps. Each step is one action a child
-   can do, written so a parent can read it aloud and the
-   child follows.
-6. VISUAL — describe the FINISHED craft so an image generator
-   can render it from a top-down perspective.
+STYLE:
+- Title: 2-5 words, playful, names the story character or object.
+- "age_appropriateness": 1 short sentence — why this age can do
+  it AND will enjoy the result.
+- Steps: 3-5 numbered actions. Each step is ONE concrete action.
 
-7. ENGAGABILITY HOOKS — the craft must feel like PLAY, not
-   a school assignment. Bake in AT LEAST THREE of the
-   following, or the craft will be scored as dry/textbook:
-   - Playful title that names the character or object from
-     THIS story (e.g. "Sunny's Magic Light Wand", not
-     "Yellow Paper Craft").
-   - The finished craft has a ROLE — the child wears it,
-     waves it, points it, hides it, gifts it, or uses it
-     to "play out" a scene from the story.
-   - A surprise / reveal in the building (something that
-     pops up, lights up via reflection, makes a sound when
-     shaken, etc.) — no electronics needed.
-   - The age_appropriateness sentence sells the FUN, not
-     just the skill ("they'll love…", "kids feel proud
-     when…").
-   - A final implicit "play step" — what the child does
-     with the craft once it's finished — is mentioned in
-     either age_appropriateness or the last step.
-
-OUTPUT — return ONLY this valid JSON, no prose, no fences:
+OUTPUT — return ONLY this valid JSON, no prose:
 
 {
-    "title": "<2-5 word activity name a child would say with excitement>",
-    "age_appropriateness": "<1 sentence — why a {age}-year-old can do this AND why they will care>",
-    "materials": ["<item 1>", "<item 2>", "<item 3-5 items max, common household items>"],
+    "title": "<2-5 word activity name>",
+    "age_appropriateness": "<1 short sentence>",
+    "materials": ["<item 1>", "<item 2>", "<3-5 common items>"],
     "steps": ["<step 1>", "<step 2>", "<step 3>"],
-    "image_generation_prompt": "<English only — A high-quality, top-down photo of the finished craft: detailed description of colours, textures, shapes, and what the craft is>"
+    "image_generation_prompt": "<English only — top-down photo of the finished craft, colours and textures shown>"
 }
 
-LANGUAGE RULES:
-- "title", "age_appropriateness", "materials", "steps" → write in {language}
-- "image_generation_prompt" → English ALWAYS (image model is English-only)
-- For Telugu output: keep common household material names in
-  English where the Telugu word is rare or confusing (e.g.
-  "tape", "foam sheet", "cotton balls")
+LANGUAGE: title, age_appropriateness, materials, steps → write in
+{language}. image_generation_prompt → English. Sentence length:
+3-4 yrs max 10 words/sentence; 5-6 yrs max 14; older ages may be
+slightly longer.
 
-QUALITY BAR:
-- Materials list: max 5 items, all findable in a normal home
-- The finished craft must visibly connect to the story — a
-  parent looking at it should be able to say "oh, this is from
-  the story about [character]"
-- Steps must be specific: "fold the paper in half" not
-  "prepare the paper"
-
-AGE-APPROPRIATE SAFETY — YOU are the judge of what a
-{age}-year-old can safely handle with normal parental
-supervision. For every material on the list, ask:
-"Would a {age}-year-old, with a parent in the room, be
-safe using this for this craft?"
-
-Most kids' tools have age-appropriate variants — scissors
-become safety scissors, knives become plastic kid knives or
-butter knives, paint becomes washable non-toxic kids' paint,
-glue becomes a glue stick, needles become blunt yarn needles.
-Use the kid-friendly version that fits the age. You don't
-have to call out "safety" or "plastic" in the material name —
-the evaluator and parents understand "scissors for a 4-year-
-old" means safety scissors.
-
-What to AVOID for young children (use judgment for the
-specific age):
-- Open flame, candles, hot water above lukewarm, stoves,
-  microwaves, ovens
-- Electricity, batteries
-- Strong chemicals, oil-based or solvent-based paints,
-  permanent markers
-- Small loose items that fit in a mouth for under-4s
-- Tools requiring a physical skill the child does not yet
-  have (precision cutting, fine sewing)
-For older children (8+), you have more latitude.
-
-- Every step must be a HAND action a child of this age can
-  do with a parent supervising.
-- One step may be "ask a grown-up to help" for a hard
-  sub-task (e.g. tying a knot for 3-year-olds) — the rest
-  the child does themselves.
-- If the craft seems to require an unsafe-for-age step,
-  INVENT a safer alternative or use an age-appropriate
-  tool variant.
-
-SENTENCE-LENGTH RULE (for age-appropriate writing):
-- Steps and "age_appropriateness" must use SHORT sentences.
-- For ages 3-4: max 10 words per sentence, average ~7.
-- For ages 5-6: max 14 words per sentence, average ~10.
-- Break compound sentences into two.
-
-Return ONLY the JSON. No commentary before or after.
+Return ONLY the JSON.

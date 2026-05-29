@@ -72,6 +72,9 @@ def _unpack_config(state: StoryTopicsState, config: RunnableConfig) -> dict:
         "religion":    cfg.get("religion", "universal_wisdom"),
         "preferences": cfg.get("preferences", ["Any"]),
         "country":     cfg.get("country", "Any"),
+        # When True, the topics agent skips the Firestore cache and forces
+        # a fresh LLM generation. Existing titles still feed dedup.
+        "new":         bool(cfg.get("new", False)),
     }
 
 

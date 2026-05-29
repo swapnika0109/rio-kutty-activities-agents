@@ -173,7 +173,9 @@ workflow.add_edge("generate_story", "validate_story")
 workflow.add_conditional_edges(
     "validate_story",
     route_after_validate,
-    {"evaluate_story": "evaluate_story", "generate_story": "generate_story"},
+    # route_after_validate may return END after max correction attempts —
+    # destination map must include it or LangGraph raises KeyError('__end__').
+    {"evaluate_story": "evaluate_story", "generate_story": "generate_story", END: END},
 )
 workflow.add_conditional_edges(
     "evaluate_story",
