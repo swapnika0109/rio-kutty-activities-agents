@@ -59,36 +59,32 @@ class MoralAgent:
                 cleaned_text = response.replace("```json", "").replace("```", "").strip()
 
             activity_data = json.loads(cleaned_text)
-            # Generate images and upload immediately so PNG bytes never enter
-            # LangGraph state (Firestore checkpoints cap at 1 MB).
-            if len(activity_data) >= 2:
-                activity_data[0]["image"] = await self._gen_and_upload(
-                    activity_data[0].get("image_generation_prompt", "")
-                )
-                activity_data[1]["image"] = await self._gen_and_upload(
-                    activity_data[1].get("image_generation_prompt", "")
-                )
-            else:
-                activity_data[0]["image"] = await self._gen_and_upload(
-                    activity_data[0].get("image_generation_prompt", "")
-                )
-
-            
-            # If images were generated, attach them
-            # We assume the prompt asked for 1 image which corresponds to the activity
-            # if response["images"]:
-                # For now, just taking the first image data
-                # Ideally, we should upload this to cloud storage and get a URL here
-                # But per your current flow, we will pass the binary data or handle it in the Saver.
-                # Let's store it in a separate 'images' key in state for the saver to handle.
-                # pass 
-
+            # Image generation is deferred to a post-evaluation node so we don't
+            # burn FLUX credits on activities that fail eval and get regenerated.
             return {
                 "activities": {**state.get("activities", {}), "moral": activity_data},
                 "completed": state.get("completed", []) + ["moral"]
             }
         except Exception as e:
             logger.error(f"Moral Agent failed: {e}")
+            return {"errors": {**state.get("errors", {}), "moral": str(e)}}
+
+    async def generate_image(self, state: dict):
+        """Generate + upload moral activity images (one per item). Runs only
+        after the evaluation pass succeeds, so credits aren't spent on retried
+        items."""
+        activities = state.get("activities", {})
+        activity_data = activities.get("moral")
+        if not activity_data:
+            return {}
+        try:
+            for item in activity_data:
+                item["image"] = await self._gen_and_upload(
+                    item.get("image_generation_prompt", "")
+                )
+            return {"activities": {**activities, "moral": activity_data}}
+        except Exception as e:
+            logger.error(f"Moral image generation failed: {e}")
             return {"errors": {**state.get("errors", {}), "moral": str(e)}}
 
 

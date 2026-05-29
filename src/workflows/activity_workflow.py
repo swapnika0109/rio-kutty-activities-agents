@@ -186,6 +186,18 @@ async def evaluate_moral_node(state: ActivityState, config: RunnableConfig):
 async def evaluate_science_node(state: ActivityState, config: RunnableConfig):
     return await _evaluate_activity(state, config, "science")
 
+# --- Image Generation Nodes ---
+# Images are generated AFTER evaluation passes so we don't burn FLUX credits
+# on activities that fail eval and get regenerated. MCQ has no image.
+async def image_art_node(state: ActivityState, config: RunnableConfig):
+    return await art_agent.generate_image(unpack_config(state, config))
+
+async def image_moral_node(state: ActivityState, config: RunnableConfig):
+    return await moral_agent.generate_image(unpack_config(state, config))
+
+async def image_science_node(state: ActivityState, config: RunnableConfig):
+    return await science_agent.generate_image(unpack_config(state, config))
+
 # --- Save Nodes ---
 async def save_mcq_node(state: ActivityState, config: RunnableConfig):
     db_data = unpack_config(state, config)
@@ -285,7 +297,14 @@ async def route_start(state: ActivityState, config: RunnableConfig):
             nodes_to_run.append(f"gen_{prefix}")
         else:
             logger.info(f"Skipping {activity_type} for {story_id} - already exists.")
-            
+
+    # If every activity already exists in DB, fan out to the terminal
+    # `mark_completed` node so WF5 reports status="completed" to master.
+    # Returning [] here lets LangGraph drop straight to END with the initial
+    # status="pending" still in state — which master then mis-reads as success.
+    if not nodes_to_run:
+        logger.info(f"[WF5] All activities already exist for {story_id} — marking completed.")
+        return ["mark_completed"]
     return nodes_to_run
 
 # Terminal node when activities exhaust retries — reports needs_human to master
@@ -294,8 +313,11 @@ def mark_activities_needs_human(state: ActivityState):
     logger.error(f"[WF5] Activities failed after {MAX_ACTIVITY_RETRIES} retries: {failed}")
     return {"status": "needs_human"}
 
-# Mark all-completed terminal node
+# Mark all-completed terminal node. Only sets status="completed" if no
+# parallel branch has already set "needs_human" — any failure wins over success.
 def mark_activities_completed(state: ActivityState):
+    if state.get("status") == "needs_human":
+        return {}
     return {"status": "completed"}
 
 
@@ -317,18 +339,21 @@ workflow.add_node("save_mcq", save_mcq_node)
 workflow.add_node("gen_art", generate_art_node)
 workflow.add_node("val_art", validate_art_node)
 workflow.add_node("eval_art", evaluate_art_node)
+workflow.add_node("img_art", image_art_node)
 workflow.add_node("save_art", save_art_node)
 
 # Activity 3: Moral
 workflow.add_node("gen_mor", generate_moral_node)
 workflow.add_node("val_mor", validate_moral_node)
 workflow.add_node("eval_mor", evaluate_moral_node)
+workflow.add_node("img_mor", image_moral_node)
 workflow.add_node("save_mor", save_moral_node)
 
 # Activity 4: Science
 workflow.add_node("gen_sci", generate_science_node)
 workflow.add_node("val_sci", validate_science_node)
 workflow.add_node("eval_sci", evaluate_science_node)
+workflow.add_node("img_sci", image_science_node)
 workflow.add_node("save_sci", save_science_node)
 
 # Entry & Fan-out (Dynamic)
@@ -336,15 +361,19 @@ workflow.set_entry_point("start")
 workflow.add_conditional_edges(
     "start",
     route_start,
-    ["gen_mcq", "gen_art", "gen_mor", "gen_sci"]
+    ["gen_mcq", "gen_art", "gen_mor", "gen_sci", "mark_completed"]
 )
 
-# Define Flows (Standardized: Gen -> Val -> Eval -> Retry/Save)
+# Define Flows (Standardized: Gen -> Val -> Eval -> [Image] -> Save)
+# MCQ has no image; art/moral/science route through an image node AFTER eval
+# passes so we don't burn FLUX credits on retried activities.
 for key, prefix in [("mcq", "mcq"), ("art", "art"), ("moral", "mor"), ("science", "sci")]:
     gen   = f"gen_{prefix}"
     val   = f"val_{prefix}"
     ev    = f"eval_{prefix}"
     save  = f"save_{prefix}"
+    has_image = key != "mcq"
+    post_eval_pass = f"img_{prefix}" if has_image else save
 
     workflow.add_edge(gen, val)
     # Structural validation: pass → evaluation; fail → regenerate or give up
@@ -353,13 +382,18 @@ for key, prefix in [("mcq", "mcq"), ("art", "art"), ("moral", "mor"), ("science"
         create_retry_logic(key),
         {"next": ev, "retry": gen, "fail": "mark_needs_human"}
     )
-    # LLM evaluation: pass → save; fail → regenerate or give up
+    # LLM evaluation: pass → image-gen (or save for MCQ); fail → regenerate or give up
     workflow.add_conditional_edges(
         ev,
         create_post_eval_routing(key),
-        {"save": save, "retry": gen, "fail": "mark_needs_human"}
+        {"save": post_eval_pass, "retry": gen, "fail": "mark_needs_human"}
     )
-    workflow.add_edge(save, END)
+    if has_image:
+        workflow.add_edge(f"img_{prefix}", save)
+    # Every save converges on mark_completed so the subgraph emits a real
+    # terminal status. mark_completed defers to needs_human when any sibling
+    # branch failed, so partial failures still surface to master correctly.
+    workflow.add_edge(save, "mark_completed")
 
 workflow.add_edge("mark_needs_human", END)
 workflow.add_edge("mark_completed", END)

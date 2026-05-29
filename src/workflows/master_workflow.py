@@ -375,9 +375,17 @@ async def collect_activities_node(state: MasterWorkflowState, config: RunnableCo
     Checks WF5 result. If failed, fires HITL interrupt().
     """
     statuses = state.get("workflow_statuses", {})
-    if statuses.get("wf5") != "needs_human":
+    wf5_status = statuses.get("wf5")
+    if wf5_status == "completed":
         logger.info("[Master] Activities completed successfully")
         return {}
+    if wf5_status != "needs_human":
+        # Anything else (pending / unknown / typo) is a state-machine bug
+        # in WF5 — fail loudly via HITL instead of silently finalising.
+        logger.error(
+            f"[Master] WF5 returned unexpected status '{wf5_status}' — "
+            "treating as needs_human to avoid silent data loss."
+        )
 
     story_id = state.get("story_id")
     failed   = [{"workflow_id": "wf5", "error": state.get("errors", {}).get("wf5", "unknown")}]

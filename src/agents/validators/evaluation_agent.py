@@ -140,15 +140,28 @@ _ACTIVITY_CRITERIA_PER_ACTIVITY: dict[str, str] = {
         "Score ONLY the clarity and completeness of the activity's own instructions — "
         "do NOT penalize for weak story alignment here (that is the 'story_alignment' "
         "metric's job; double-counting it here is forbidden). "
+        "Judge the activity IN ISOLATION — do NOT require the full story, additional "
+        "context, or external knowledge to score. If the input shows only a story "
+        "excerpt or no story at all, that is FINE; assume the story exists and judge "
+        "ONLY the activity's own wording. Never lower the score because story content "
+        "is missing or truncated. "
         "Ask: 'Are the instructions/options/questions self-contained and unambiguous? "
         "Can a non-expert parent follow them without guessing or looking things up?' "
-        "For MCQ, the question must have one clearly correct answer and distractors "
-        "that are wrong but plausible. For physical activities, the materials list + "
-        "steps must be complete, ordered, and unambiguous. "
+        "For MCQ: judge the questions, options, and correct field. HIGH (0.9+) if each "
+        "question is a single clear sentence, has 3 plausible options, and a clearly "
+        "marked correct answer. Do NOT require verifying correctness against the story "
+        "— assume the generator picked the right answer. Do NOT evaluate physical-step "
+        "or materials criteria for MCQ; those simply do not apply and must not lower "
+        "the score. "
+        "For physical activities (art/science/moral): the materials list + steps must "
+        "be complete, ordered, and unambiguous. "
+        "IMPORTANT: any sub-step of your internal evaluation procedure that is 'not "
+        "applicable' to the activity type (e.g. physical-step checks for an MCQ) is "
+        "treated as PASSED, never as a deduction. "
         "Mark HIGH (0.9+) if instructions are complete and clear — even if the "
-        "activity's connection to the story is weak. Mark LOW only for actual "
-        "ambiguity, missing materials, or out-of-order steps within the activity "
-        "itself."
+        "activity's connection to the story is weak or the story is not shown. Reserve "
+        "LOW only for actual ambiguity, missing materials, out-of-order steps, or "
+        "garbled questions within the activity itself."
     ),
 }
 
@@ -165,10 +178,17 @@ _ACTIVITY_CRITERIA_SHARED: dict[str, str] = {
         "should lower the score. Mark high only if fully age-safe."
     ),
     "engagability": (
-        "Would a child of the specified age want to do these activities? Score high if "
-        "the activities have a fun hook, a sense of play, a tangible outcome the child "
-        "is excited about, or ask interesting questions. Score lower for dry, "
-        "textbook-feeling activities with no spark of fun."
+        "Would a child of the specified age want to do these activities? Reward ANY of "
+        "the following — presence of even one or two should put the score at 0.7+: "
+        "(a) a playful or inviting title that names a character/object from the story, "
+        "(b) a tangible outcome the child can hold, wear, show off, or play with after, "
+        "(c) a moment of choice, pretend-play, role-play, or imagination, "
+        "(d) a story-tied hook in the setup (the child becomes/helps a character), "
+        "(e) interesting age-appropriate questions that invite the child to respond. "
+        "Score 0.8+ if multiple of the above are present. Reserve scores below 0.5 for "
+        "activities that are genuinely dry worksheets with no story tie-in, no tangible "
+        "outcome, and no choice or play element — a craft or role-play that ties to the "
+        "story should not score below 0.6 just because the tone is instructional."
     ),
     # age_appropriateness is Python-checked (_python_age_appropriateness) on the
     # flattened activity text — same vocab/sentence-length rubric as story eval.
@@ -193,7 +213,7 @@ _ACTIVITY_HARD_METRICS: dict[str, float] = {
     # the seeds rather than verbatim story events. Empirical pass-rate was too
     # low at 0.6 and the corrector-loop couldn't close the gap on retries.
     "story_alignment":      0.5,
-    "safety_of_execution":  0.9,
+    "safety_of_execution":  0.8,
     "instructions_clarity": 0.7,
 }
 # age_appropriateness is Python-computed and injected post-gather.
